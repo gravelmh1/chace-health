@@ -1,0 +1,14 @@
+{
+  "name": "chace-health",
+  "version": "1.0.0",
+  "private": true,
+  "description": "개인 건강 대시보드 — Apple Health / RENPHO 데이터를 Supabase 에서 읽어 표시",
+  "type": "module",
+  "scripts": {
+    "test": "node tests/verify.mjs",
+    "dev": "node tests/serve.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.50.1"
+  }
+}
