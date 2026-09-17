@@ -93,6 +93,12 @@ iframe 을 쓰는 이유는 실패해도 Safari 오류 페이지가 뜨지 않�
 빌드 단계가 없으므로 저장소를 그대로 정적 호스팅에 연결하면 됩니다.
 push 할 때마다 자동 배포되고, 그때부터 "코드 → 배포 → 아이폰 화면"이 한 줄로 이어집니다.
 
+- **GitHub Pages** — `.github/workflows/pages.yml` 포함.
+  **Settings → Pages → Source 를 "GitHub Actions" 로 한 번 바꿔야** 동작합니다.
+  (워크플로가 자동으로 켜도록 `enablement: true` 를 넣어봤지만, Actions 토큰에는
+  Pages 사이트 *생성* 권한이 없어 `Resource not accessible by integration` 으로 막힙니다.
+  `pages: write` 는 배포만 허용합니다. 사람이 한 번 눌러야 하는 단계입니다.)
+  private 저장소의 Pages 는 GitHub Pro 이상이 필요합니다.
 - **Vercel** — `vercel.json` 포함. import 할 때 프레임워크는 `Other`, 빌드 명령은 비워둡니다.
 - **Netlify** — `netlify.toml` 포함. 추가 설정 없이 그대로 연결하면 됩니다.
 - **Cloudflare Pages** — 빌드 명령 비움, 출력 디렉터리 `/`.
