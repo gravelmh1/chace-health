@@ -21,63 +21,65 @@
 <pre id="out">실행 중…</pre>
 
 <script type="module">
-import { sb, isConfigured } from '../js/supabase.js';
-import { PROFILE_ID, METRICS_TABLE, CALENDAR_TABLE } from '../js/config.js';
+import { selectRows, isConfigured } from '../js/supabase.js';
+import { METRICS_TABLE, CALENDAR_TABLE } from '../js/config.js';
+import { getProfileId } from '../js/settings.js';
 import { laToday } from '../js/time.js';
 
 const out = document.getElementById('out');
 const log = (...a) => { out.textContent += a.join(' ') + '\n'; };
-
 out.textContent = '';
 
-if (!isConfigured) {
-  log('❌ js/config.js 의 SUPABASE_ANON_KEY 가 아직 비어 있습니다.');
+if (!isConfigured()) {
+  log('❌ anon key 가 없습니다. 앱(index.html)의 ⚙ 설정에서 먼저 입력하세요.');
 } else {
+  const profileId = getProfileId();
   log('LA 기준 오늘:', laToday());
-  log('profile_id  :', PROFILE_ID);
+  log('profile_id  :', profileId);
   log('');
 
-  // 1. 컬럼 이름 확인 — 아무 행이나 1건
-  const { data: sample, error: e1 } = await sb
-    .from(METRICS_TABLE).select('*').limit(1);
-  if (e1) log('❌', METRICS_TABLE, e1.message);
-  else {
+  try {
+    const sample = await selectRows(METRICS_TABLE, { select: '*', limit: '1' });
     log(`== ${METRICS_TABLE} 컬럼 ==`);
-    log(sample?.[0] ? Object.keys(sample[0]).join(', ') : '(행 없음)');
+    log(sample[0] ? Object.keys(sample[0]).join(', ') : '(행 없음)');
     log('');
     log('== 샘플 행 ==');
-    log(JSON.stringify(sample?.[0] ?? null, null, 2));
+    log(JSON.stringify(sample[0] ?? null, null, 2));
     log('');
+  } catch (e) {
+    log('❌', METRICS_TABLE, e.message);
   }
 
-  // 2. source / metric 조합별 최신값
-  const { data: recent, error: e2 } = await sb
-    .from(METRICS_TABLE).select('*')
-    .eq('profile_id', PROFILE_ID)
-    .order('measured_at', { ascending: false })
-    .limit(40);
-  if (e2) log('❌ 최근 행 조회:', e2.message);
-  else {
-    log('== 최근 40행의 source / metric 조합 ==');
+  try {
+    const recent = await selectRows(METRICS_TABLE, {
+      select: '*',
+      profile_id: `eq.${profileId}`,
+      order: 'recorded_at.desc',
+      limit: '60',
+    });
+    log('== 최근 60행의 source / metric 조합 (각 조합의 최신 1건) ==');
     const seen = new Map();
-    for (const r of recent || []) {
+    for (const r of recent) {
       const k = `${r.source} / ${r.metric}`;
       if (!seen.has(k)) seen.set(k, r);
     }
     for (const [k, r] of seen) {
-      log(`${k.padEnd(36)} = ${r.value} ${r.unit ?? ''}  @ ${r.measured_at}  local_date=${r.metadata?.local_date ?? '(없음)'}`);
+      log(`${k.padEnd(38)} = ${r.value} ${r.unit ?? ''}`);
+      log(`${''.padEnd(38)}   recorded_at=${r.recorded_at}`);
+      log(`${''.padEnd(38)}   metadata=${JSON.stringify(r.metadata)}`);
     }
     log('');
+  } catch (e) {
+    log('❌ 최근 행 조회:', e.message);
   }
 
-  // 3. 캘린더 테이블
-  const { data: cal, error: e3 } = await sb
-    .from(CALENDAR_TABLE).select('*').limit(1);
-  if (e3) log('❌', CALENDAR_TABLE, e3.message);
-  else {
+  try {
+    const cal = await selectRows(CALENDAR_TABLE, { select: '*', limit: '1' });
     log(`== ${CALENDAR_TABLE} 컬럼 ==`);
-    log(cal?.[0] ? Object.keys(cal[0]).join(', ') : '(행 없음)');
-    log(JSON.stringify(cal?.[0] ?? null, null, 2));
+    log(cal[0] ? Object.keys(cal[0]).join(', ') : '(행 없음)');
+    log(JSON.stringify(cal[0] ?? null, null, 2));
+  } catch (e) {
+    log('❌', CALENDAR_TABLE, e.message);
   }
 }
 </script>

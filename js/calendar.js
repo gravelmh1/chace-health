@@ -1,42 +1,18 @@
-// 운동 달력 — 월 단위 그리드 + 날짜별 운동 횟수 + Google Calendar 일정 표시.
+// Google Calendar 운동 일정 조회 + 달력 그리드 생성.
 //
 // 날짜 키는 전부 LA 기준 'YYYY-MM-DD' 문자열이다.
 // Date 객체의 getDate()/getMonth() 로 칸을 만들면 브라우저 시간대에 따라
-// 하루가 밀리므로, 그리드 생성도 LA 날짜 문자열을 기준으로 한다.
+// 하루가 밀리므로, 그리드 생성도 UTC 기준 계산 + LA 날짜 문자열로 처리한다.
 
 import { selectRows } from './supabase.js';
-import { CALENDAR_TABLE, CALENDAR_COL as CC } from './config.js';
+import { CALENDAR_TABLE, CALENDAR_COL as CC, WORKOUT_CATEGORY } from './config.js';
 import { getProfileId } from './settings.js';
 import { laDateString, laToday, toDate } from './time.js';
 
-const workoutKey = () => `chace:workouts:${getProfileId()}`;
-
-// --- 운동 횟수 입력 (로컬 저장) -------------------------------------------
-// 주의: 이건 사용자가 앱에서 직접 입력하는 값이라 Supabase 동기화 데이터와
-// 별개다. health_external_metrics 를 덮어쓰지 않는다.
-
-export function loadWorkouts() {
-  try {
-    return JSON.parse(localStorage.getItem(workoutKey()) || '{}');
-  } catch {
-    return {};
-  }
-}
-
-export function saveWorkoutCount(dateStr, count) {
-  const all = loadWorkouts();
-  const n = Number(count);
-  if (!Number.isFinite(n) || n <= 0) delete all[dateStr];
-  else all[dateStr] = Math.floor(n);
-  try {
-    localStorage.setItem(workoutKey(), JSON.stringify(all));
-  } catch { /* 저장 실패해도 화면은 계속 동작 */ }
-  return all;
-}
-
-// --- Google Calendar 운동 일정 --------------------------------------------
-
-/** 해당 월(LA 기준)의 일정을 날짜별로 묶어서 반환 */
+/**
+ * 해당 월(LA 기준)의 일정을 날짜별로 묶어서 반환.
+ * 컬럼은 start_at / end_at 이다 (starts_at / ends_at 아님).
+ */
 export async function fetchCalendarEvents(year, month /* 1-12 */) {
   const first = `${year}-${String(month).padStart(2, '0')}-01`;
   const nextY = month === 12 ? year + 1 : year;
@@ -46,13 +22,13 @@ export async function fetchCalendarEvents(year, month /* 1-12 */) {
   let rows;
   try {
     rows = await selectRows(CALENDAR_TABLE, {
-      select: `${CC.title},${CC.startsAt},${CC.endsAt},${CC.source}`,
+      select: [CC.title, CC.category, CC.startAt, CC.endAt, CC.location, CC.source].join(','),
       [CC.profileId]: `eq.${getProfileId()}`,
-      // 경계는 넉넉히 잡고(오프셋 여유) LA 날짜로 다시 거른다. 시간대 때문에
-      // 월 끝자락 일정이 잘리는 것을 막기 위함.
-      [CC.startsAt]: `gte.${first}T00:00:00-08:00`,
-      order: `${CC.startsAt}.asc`,
-      and: `(${CC.startsAt}.lt.${next}T00:00:00-07:00)`,
+      // 경계는 오프셋 여유를 두고 넉넉히 잡은 뒤 LA 날짜로 다시 거른다.
+      // 시간대 때문에 월 끝자락 일정이 잘리는 것을 막기 위함.
+      [CC.startAt]: `gte.${first}T00:00:00-08:00`,
+      and: `(${CC.startAt}.lt.${next}T00:00:00-07:00)`,
+      order: `${CC.startAt}.asc`,
     });
   } catch (e) {
     throw new Error(`calendar: ${e.message}`);
@@ -60,21 +36,22 @@ export async function fetchCalendarEvents(year, month /* 1-12 */) {
 
   const byDate = {};
   for (const row of rows) {
-    const d = toDate(row[CC.startsAt]);
+    const d = toDate(row[CC.startAt]);
     if (!d) continue;
     const key = laDateString(d);
     (byDate[key] ||= []).push({
       title: row[CC.title] || '일정',
-      startsAt: row[CC.startsAt],
+      category: row[CC.category] ?? null,
+      isWorkout: row[CC.category] === WORKOUT_CATEGORY,
+      location: row[CC.location] ?? null,
+      startAt: row[CC.startAt],
     });
   }
   return byDate;
 }
 
-// --- 그리드 생성 ------------------------------------------------------------
-
 /**
- * 해당 월의 달력 칸 배열.
+ * 해당 월의 달력 칸 배열. 일요일 시작.
  * 각 칸: { dateStr, day, inMonth, isToday }
  */
 export function buildMonthGrid(year, month /* 1-12 */) {

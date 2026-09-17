@@ -35,8 +35,33 @@ npm run dev      # http://127.0.0.1:5173
 
 | 테이블 | 컬럼 |
 |---|---|
-| `health_external_metrics` | `profile_id`, `source`, `metric`, `value`, `unit`, `measured_at`, `metadata`(jsonb, `local_date` 키 포함) |
-| `health_calendar_events` | `profile_id`, `title`, `starts_at`, `ends_at`, `source` |
+| `health_external_metrics` | `profile_id`, `recorded_at`, `source`, `metric`, `value`, `unit`, `metadata`(jsonb), `updated_at` |
+| `health_calendar_events` | `profile_id`, `calendar_id`, `event_id`, `title`, `category`, `start_at`, `end_at`, `location`, `source`, `updated_at` |
+
+**주의할 이름들** — 흔히 틀리는 지점입니다.
+
+- 측정 시각 컬럼은 `recorded_at` 입니다. 이 테이블에 `measured_at` / `created_at` 은 **없습니다.**
+- 달력은 `start_at` / `end_at` 입니다. `starts_at` / `ends_at` 이 **아닙니다.**
+
+`source` 값: `Apple Health`, `RENPHO Health`
+
+`metric` 값과 단위:
+
+| metric | unit |
+|---|---|
+| `bodyMass` | kg |
+| `bodyFatPercentage` | % |
+| `bodyMassIndex` | unitless |
+| `leanBodyMass` | kg |
+| `heartRate` | count/min |
+| `stepCount` | count |
+| `distanceWalkingRunning` | m (화면에는 mi 로 환산) |
+
+`metadata` jsonb 키: `aggregation`, `complete_day`, `day`, `incomplete_day`,
+`local_date`, `local_time`, `local_timestamp`, `sample_end_local`, `source`,
+`source_bundle`, `synced_local_time`, `timezone`
+
+`health_calendar_events` 기본값: `category = '운동'`, `source = 'google_calendar'`
 
 ## 데이터 흐름에서 지키는 규칙
 
@@ -45,12 +70,19 @@ npm run dev      # http://127.0.0.1:5173
 1. **metric 마다 독립적으로 최신 1건을 조회한다.**
    체중 기록 한 건을 통째로 읽어 거기 붙은 체지방/BMI/근육량을 같이 쓰면,
    그 측정 세션에 일부 metric 이 빠졌을 때 카드 전체가 과거 시점에 고정됩니다.
-2. **정렬은 `measured_at`(측정 시각) 기준.** `created_at`(저장 시각)이 아닙니다.
-   동기화가 몰아서 들어오면 저장 순서와 측정 순서가 뒤집힙니다.
+2. **정렬은 `recorded_at`(측정 시각) 기준.**
+   이 테이블에 `measured_at` / `created_at` 은 존재하지 않습니다.
+   `updated_at`(갱신 시각)으로 정렬하면 동기화가 몰아 들어올 때 순서가 뒤집힙니다.
 3. **날짜 경계는 UTC timestamp 범위로 자르지 않는다.**
    `metadata->>local_date` 의 LA 날짜 문자열로 직접 매칭합니다.
    UTC 로 자르면 LA 오후 5시 이후 데이터가 "내일"로 넘어가 오늘 걸음수가 0 이 됩니다.
 4. **데이터가 없으면 0 이 아니라 `null`.** "측정값 0" 과 "기록 없음" 은 다른 상태입니다.
+4-1. **`stepCount` 는 날짜당 행이 1개가 아닙니다.**
+   현재는 `metadata.aggregation = 'daily_sum'` 인 일일 집계 행이지만,
+   과거에는 같은 `local_date` 에 시간별 누적 snapshot 행이 여러 개 쌓였습니다.
+   그래서 그 날짜의 행을 모두 받아 **집계 행이 있으면 그것을**, 없으면
+   가장 최근 snapshot 을 씁니다. "최신 1건"만 집으면 집계 행보다 나중에 들어온
+   부분 snapshot 을 잡아 값이 작아집니다.
 5. **날짜/시간 계산은 `js/time.js` 를 통해서만.**
    `toISOString().slice(0,10)` 과 `getDate()/getMonth()` 는 쓰지 않습니다.
 6. **캐시를 신뢰하지 않는다.** 모든 요청에 `cache: 'no-store'`,
@@ -65,7 +97,7 @@ npm run test:all
 
 | 명령 | 내용 |
 |---|---|
-| `npm test` | 실제 Chromium 에서 앱을 띄우고 화면에 찍힌 값을 검증 (17개) |
+| `npm test` | 실제 Chromium 에서 앱을 띄우고 화면에 찍힌 값을 검증 (23개) |
 | `NOW=2026-09-18T03:00:00Z npm test` | LA 는 9/17 저녁, UTC 는 이미 9/18 인 시간대 경계 |
 | `npm run test:setup` | 설정 화면 · service_role 키 차단 · 키 유지 (14개) |
 
@@ -80,13 +112,17 @@ Supabase REST 응답을 픽스처로 가로채되, 앱이 만든 쿼리 문자�
 
 ## RENPHO 카드 클릭
 
-검증되지 않은 커스텀 스킴으로 이동하면 iOS Safari 가
-"Safari cannot open the page because the address is invalid" 를 띄웁니다.
-그래서 기본값(`RENPHO_APP_SCHEME = null`)은 **스킴을 시도하지 않고** https 링크만 엽니다.
+의도는 App Store 가 아니라 RENPHO 앱을 직접 여는 것입니다.
 
-실기기에서 동작이 검증된 스킴이 생기면 `js/config.js` 의 `RENPHO_APP_SCHEME` 에 넣으세요.
-값이 있을 때만 "숨김 iframe 으로 스킴 시도 → 실패 시 https 폴백" 경로가 켜집니다.
-iframe 을 쓰는 이유는 실패해도 Safari 오류 페이지가 뜨지 않기 때문입니다.
+`renpho://` 스킴은 실기기에서 검증되지 않았지만, **숨김 iframe 으로 던지기 때문에
+스킴이 틀려도 Safari 오류 페이지가 뜨지 않습니다.** 최상위 문서를 커스텀 스킴으로
+이동시키면 "Safari cannot open the page because the address is invalid" 가 뜨는데,
+그 경로를 쓰지 않는 것이 핵심입니다.
+
+1.2초 안에 앱으로 전환되지 않으면 항상 유효한 https 주소로 폴백합니다.
+테스트가 **최상위 문서는 https 로만 이동한다**는 것을 고정하고 있습니다.
+
+다른 스킴으로 바꾸려면 `js/config.js` 의 `RENPHO_APP_SCHEME` 만 고치면 됩니다.
 
 ## 배포
 

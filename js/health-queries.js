@@ -7,8 +7,9 @@
 //     그 측정 세션에 일부 metric 이 없었을 때 카드 전체가 과거 시점으로 고정된다.
 //     (9/15 값이 화면에 남아 있던 전형적인 패턴)
 //
-//  2. 정렬은 항상 "측정 시각(measured_at)" 기준. 저장 시각(created_at)이 아니다.
-//     동기화가 몰아서 들어오면 저장 순서와 측정 순서가 서로 뒤집힌다.
+//  2. 정렬은 항상 "측정 시각(recorded_at)" 기준.
+//     이 테이블에 measured_at / created_at 은 존재하지 않는다.
+//     저장 시각으로 정렬하면 동기화가 몰아 들어올 때 순서가 뒤집힌다.
 //
 //  3. 날짜 경계가 필요한 조회는 UTC timestamp 범위로 자르지 않는다.
 //     LA 기준 날짜 문자열(metadata->>local_date)로 직접 매칭한다.
@@ -17,14 +18,14 @@
 //  4. 데이터가 없으면 0 이 아니라 null 을 돌려준다.
 //     "측정값 0" 과 "측정 기록 없음" 은 다른 상태이고, UI 도 다르게 보여야 한다.
 
-import { selectOne } from './supabase.js';
+import { selectOne, selectRows } from './supabase.js';
 import {
   METRICS_TABLE, METRICS_COL as C, SOURCE,
 } from './config.js';
 import { getProfileId } from './settings.js';
 import { laToday } from './time.js';
 
-const SELECT = `${C.value},${C.unit},${C.measuredAt},${C.metadata}`;
+const SELECT = `${C.value},${C.unit},${C.recordedAt},${C.metadata}`;
 
 /** 행 하나를 앱 내부 표준 형태로 정규화 */
 function normalize(row) {
@@ -34,7 +35,7 @@ function normalize(row) {
   return {
     value: Number.isFinite(value) ? value : null,
     unit: row[C.unit] ?? null,
-    measuredAt: row[C.measuredAt] ?? null,
+    recordedAt: row[C.recordedAt] ?? null,
     metadata: row[C.metadata] ?? null,
   };
 }
@@ -50,7 +51,7 @@ export async function fetchLatestMetric(source, metric) {
       [C.profileId]: `eq.${getProfileId()}`,
       [C.source]: `eq.${source}`,
       [C.metric]: `eq.${metric}`,
-      order: `${C.measuredAt}.desc`,
+      order: `${C.recordedAt}.desc`,
     });
     return normalize(row);
   } catch (e) {
@@ -86,7 +87,7 @@ export const RENPHO_METRICS = [
 
 /**
  * RENPHO 카드 데이터.
- * syncedAt = 가져온 metric 들의 measured_at 중 가장 최신값.
+ * syncedAt = 가져온 metric 들의 recorded_at 중 가장 최신값.
  * (고정된 "동기화 시각" 컬럼이 아니라 실제 측정 시각에서 계산한다)
  */
 export async function fetchRenpho() {
@@ -94,7 +95,7 @@ export async function fetchRenpho() {
 
   let syncedAt = null;
   for (const m of RENPHO_METRICS) {
-    const t = metrics[m]?.measuredAt;
+    const t = metrics[m]?.recordedAt;
     if (t && (!syncedAt || new Date(t) > new Date(syncedAt))) syncedAt = t;
   }
 
@@ -107,37 +108,59 @@ export async function fetchHeartRate() {
 }
 
 /**
+ * 특정 LA 날짜의 일일 누적값 (stepCount, distanceWalkingRunning 등).
+ *
+ * 주의: 날짜당 행이 1개라고 가정하면 안 된다.
+ *   - 현재 방식: metadata.aggregation = 'daily_sum' 인 일일 집계 행 1건
+ *   - 과거 방식: 같은 local_date 에 시간별 누적 snapshot 행이 여러 개
+ * 그래서 그 날짜의 행을 모두 받아서, 집계 행이 있으면 그것을 쓰고
+ * 없으면 가장 최근 snapshot 을 쓴다.
+ *
+ * 하루가 끝나기 전(complete_day = false)이어도 그 시점까지의 누적값을 그대로 쓴다.
+ */
+async function fetchDailyTotal(metric, localDate) {
+  let rows;
+  try {
+    rows = await selectRows(METRICS_TABLE, {
+      select: SELECT,
+      [C.profileId]: `eq.${getProfileId()}`,
+      [C.source]: `eq.${SOURCE.apple}`,
+      [C.metric]: `eq.${metric}`,
+      // LA 기준 날짜 문자열로 직접 매칭. UTC timestamp 범위로 자르지 않는다.
+      [`${C.metadata}->>local_date`]: `eq.${localDate}`,
+      order: `${C.recordedAt}.desc`,
+      limit: '50',
+    });
+  } catch (e) {
+    throw new Error(`${metric}(${localDate}): ${e.message}`);
+  }
+
+  if (!rows.length) return null;
+
+  // 집계 행 우선. 없으면 가장 최근 snapshot (rows 는 이미 recorded_at 내림차순)
+  const aggregate = rows.find((r) => r[C.metadata]?.aggregation === 'daily_sum');
+  const picked = aggregate ?? rows[0];
+
+  return {
+    ...normalize(picked),
+    localDate,
+    isAggregate: !!aggregate,
+    completeDay: picked[C.metadata]?.complete_day ?? null,
+    rowCount: rows.length,
+  };
+}
+
+/**
  * 오늘(LA 기준) 걸음수.
- *
- * metadata->>local_date 가 오늘인 행 중 가장 최근 것.
- * 하루가 끝나기 전 incomplete day 라도 그 시점까지의 누적값이 그대로 나온다.
- *
- * 오늘 행이 아직 없으면 0 으로 떨어뜨리지 않고, 마지막으로 기록된 날의 값을
+ * 오늘 행이 아직 없으면 0 으로 떨어뜨리지 않고, 마지막 기록일의 값을
  * stale 표시와 함께 돌려준다. 화면에 근거 없는 0 이 찍히는 일을 막는 장치.
  */
 export async function fetchStepsToday() {
   const today = laToday();
 
-  let row;
-  try {
-    row = await selectOne(METRICS_TABLE, {
-      select: SELECT,
-      [C.profileId]: `eq.${getProfileId()}`,
-      [C.source]: `eq.${SOURCE.apple}`,
-      [C.metric]: 'eq.stepCount',
-      // LA 기준 날짜 문자열로 직접 매칭. UTC timestamp 범위로 자르지 않는다.
-      [`${C.metadata}->>local_date`]: `eq.${today}`,
-      order: `${C.measuredAt}.desc`,
-    });
-  } catch (e) {
-    throw new Error(`stepCount(today): ${e.message}`);
-  }
+  const todayRow = await fetchDailyTotal('stepCount', today);
+  if (todayRow) return { ...todayRow, isToday: true };
 
-  if (row) {
-    return { ...normalize(row), localDate: today, isToday: true };
-  }
-
-  // 오늘 집계가 아직 안 들어온 경우 → 마지막 기록일의 값
   const last = await fetchLatestMetric(SOURCE.apple, 'stepCount');
   if (!last) return null;
 
@@ -148,16 +171,30 @@ export async function fetchStepsToday() {
   };
 }
 
+/** 오늘(LA 기준) 걷기·달리기 거리. 단위는 m 로 저장된다. */
+export async function fetchDistanceToday() {
+  const today = laToday();
+
+  const todayRow = await fetchDailyTotal('distanceWalkingRunning', today);
+  if (todayRow) return { ...todayRow, isToday: true };
+
+  const last = await fetchLatestMetric(SOURCE.apple, 'distanceWalkingRunning');
+  if (!last) return null;
+
+  return { ...last, localDate: last.metadata?.local_date ?? null, isToday: false };
+}
+
 /** 세 카드를 한 번에. 개별 실패가 전체를 죽이지 않는다. */
 export async function fetchDashboard() {
-  const [renpho, heartRate, steps] = await Promise.allSettled([
+  const [renpho, heartRate, steps, distance] = await Promise.allSettled([
     fetchRenpho(),
     fetchHeartRate(),
     fetchStepsToday(),
+    fetchDistanceToday(),
   ]);
 
   const unwrap = (r) => (r.status === 'fulfilled' ? r.value : null);
-  const errs = [renpho, heartRate, steps]
+  const errs = [renpho, heartRate, steps, distance]
     .filter((r) => r.status === 'rejected')
     .map((r) => r.reason?.message || String(r.reason));
 
@@ -167,6 +204,7 @@ export async function fetchDashboard() {
     renpho: renphoVal,
     heartRate: unwrap(heartRate),
     steps: unwrap(steps),
+    distance: unwrap(distance),
     errors: [...errs, ...(renphoVal?.errors ?? [])],
     fetchedAt: new Date().toISOString(),
   };

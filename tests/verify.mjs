@@ -98,6 +98,9 @@ const got = {
   hrTime: (await text('hr-time')).trim(),
   steps: (await text('steps-value')).trim(),
   stepsNote: (await text('steps-note')).trim(),
+  dist: (await text('dist-value')).trim(),
+  today: (await text('today-label')).trim(),
+  sumWeight: (await text('sum-weight')).trim(),
   errors: await page.isHidden('#errors'),
 };
 
@@ -106,10 +109,14 @@ const checks = [
   ['RENPHO 체지방률 = 13.2',        got.fat === '13.2'],
   ['RENPHO BMI = 24.0',             got.bmi === '24.0'],
   ['RENPHO 근육량 = 67.96',         got.lean === '67.96'],
-  ['RENPHO 측정시각 = 9/17 10:07 AM', got.synced.startsWith('9/17, 10:07 AM')],
+  ['RENPHO 동기화 = 9/17 오전 10:07', got.synced.startsWith('9/17 오전 10:07')],
   ['심박수 = 105',                  got.hr === '105'],
-  ['심박수 시각 = 9/17 12:17 PM',   got.hrTime.startsWith('9/17, 12:17 PM')],
-  ['걸음수 = 6,482 (오늘 최신 누적)', got.steps === '6,482'],
+  ['심박수 시각 = 9/17 오후 12:17', got.hrTime.startsWith('9/17 오후 12:17')],
+  ['걸음수 = 6,482 (일일 집계 행 선택)', got.steps === '6,482'],
+  ['걸음수가 더 최신 legacy snapshot(6,100)을 집지 않음', got.steps !== '6,100'],
+  ['거리 = 1.1 mi (1770.3 m 환산)', got.dist === '1.1'],
+  ['상단 날짜 = 9월 17일 (목)',      got.today === '9월 17일 (목)'],
+  ['요약 체중 = 78.3',               got.sumWeight === '78.3'],
   ['걸음수가 "기록 없음" 이 아님',   !got.stepsNote.includes('집계 없음') && !got.stepsNote.includes('기록 없음')],
   ['걸음수가 0 이 아님',            got.steps !== '0'],
   ['걸음수 = 오늘 진행중 표시',      got.stepsNote.includes('오늘')],
@@ -118,7 +125,7 @@ const checks = [
 ];
 
 // 달력: LA 9/16(=UTC 9/17 14:00) 과 9/30 야간 일정이 제자리에 찍히는지
-const evDays = await page.$$eval('.cal-cell.has-event .d', (els) => els.map((e) => e.textContent));
+const evDays = await page.$$eval('.cal-cell:has(.ev) .d', (els) => els.map((e) => e.textContent));
 checks.push(['달력 일정 표시됨', evDays.length > 0]);
 // 픽스처의 일정 3건은 LA 기준 9/17, 9/18, 9/30 에 찍혀야 한다.
 // 9/30 건은 UTC 로는 10/1 이라, 월 경계를 UTC 로 자르면 사라진다.
@@ -138,23 +145,33 @@ await page.screenshot({
 console.log(`\n=== 기준 시각: ${NOW.toISOString()} (LA ${new Intl.DateTimeFormat('en-US',{timeZone:'America/Los_Angeles',dateStyle:'short',timeStyle:'short'}).format(NOW)}) ===`);
 console.log('=== 화면에 실제로 찍힌 값 ===');
 for (const [k, v] of Object.entries(got)) console.log(`  ${k.padEnd(11)}: ${v}`);
-// --- RENPHO 카드 클릭: 항상 "열 수 있는" URL 로만 이동하는지 ---
-// Safari 의 "address is invalid" 는 결국 파싱 불가능한 URL 로 이동할 때 난다.
-let navigatedTo = null;
+// --- RENPHO 카드 클릭 ---
+// 의도: RENPHO 앱을 직접 연다. 앱이 없으면 https 로 폴백한다.
+// 안전 조건: 커스텀 스킴은 숨김 iframe 으로만 던진다. 최상위 문서를
+// renpho:// 로 이동시키면 iOS Safari 가 "address is invalid" 를 띄우기 때문이다.
+let topNav = null;        // 최상위 프레임이 이동한 곳
+let frameNav = [];        // 하위 프레임(iframe)이 이동한 곳
 await page.route('**/*', (route) => {
-  const u = route.request().url();
-  if (route.request().isNavigationRequest() && !u.startsWith(base)) {
-    navigatedTo = u;
+  const req = route.request();
+  const u = req.url();
+  if (req.isNavigationRequest() && !u.startsWith(base)) {
+    if (req.frame() === page.mainFrame()) topNav = u;
+    else frameNav.push(u);
     return route.abort();
   }
   return route.continue();
 });
 await page.click('#renpho-card');
-await page.waitForTimeout(600);
+// 스킴 시도(1.2s) 후 폴백까지 기다린다
+await page.waitForTimeout(2200);
 
 let navOk = false;
-try { navOk = !!navigatedTo && !!new URL(navigatedTo) && navigatedTo.startsWith('https://'); } catch { navOk = false; }
-checks.push([`RENPHO 클릭 → 유효한 https URL (${navigatedTo ?? '이동 없음'})`, navOk]);
+try { navOk = !!topNav && !!new URL(topNav) && topNav.startsWith('https://'); } catch { navOk = false; }
+checks.push([`RENPHO 클릭 → 최상위는 https 로만 (${topNav ?? '이동 없음'})`, navOk]);
+checks.push([
+  '최상위 문서가 커스텀 스킴으로 이동하지 않음 (Safari 오류 방지)',
+  !topNav || !/^[a-z][a-z0-9+.-]*:/i.test(topNav) || topNav.startsWith('http'),
+]);
 
 console.log('\n=== 앱이 보낸 쿼리 ===');
 for (const r of requests) console.log('  ' + decodeURIComponent(r));

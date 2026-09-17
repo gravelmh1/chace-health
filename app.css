@@ -71,12 +71,7 @@ h1 { margin: 0; font-size: 24px; letter-spacing: -0.02em; }
 .dot.rp { background: var(--rp); }
 .chev { margin-left: auto; color: var(--muted); }
 
-.big { margin: 10px 0 2px; font-size: 34px; font-weight: 650; letter-spacing: -0.03em; }
-.big .unit { font-size: 13px; font-weight: 500; color: var(--muted); margin-left: 5px; }
 .sub { margin: 4px 0 0; font-size: 12px; color: var(--muted); }
-/* 카드 높이가 문구 길이에 따라 들쭉날쭉해지지 않도록 한 줄로 고정 */
-.metric .sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.metric { display: flex; flex-direction: column; }
 .sub.stale { color: var(--warn); }
 
 /* --- renpho --- */
@@ -191,3 +186,86 @@ h1 { margin: 0; font-size: 24px; letter-spacing: -0.02em; }
 .diag li.bad { background: rgba(255,107,107,.1); }
 .diag li span { display: block; color: var(--muted); margin-top: 3px; word-break: break-all; }
 .diag li.pending { color: var(--muted); }
+
+/* --- 헤더 / 요약 --- */
+.today { margin: 0 0 2px; font-size: 13px; color: var(--muted); }
+.status { margin: 0; }
+
+.summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.summary .k { margin: 0 0 4px; font-size: 11.5px; color: var(--muted); }
+.summary .v { margin: 0; font-size: 21px; font-weight: 650; letter-spacing: -0.02em; }
+.summary .v em { font-style: normal; font-size: 11.5px; font-weight: 500; color: var(--muted); margin-left: 3px; }
+
+/* --- Apple / RENPHO 카드 --- */
+.ic {
+  width: 20px; height: 20px; border-radius: 6px; flex: none;
+  display: grid; place-items: center; font-size: 12px; font-weight: 700; color: #06101f;
+}
+.ic.hr { background: var(--hr); color: #fff; }
+.ic.rp { background: var(--rp); }
+
+.apple .line { margin: 10px 0 0; font-size: 13px; color: var(--muted); }
+.apple .line b { font-size: 24px; font-weight: 650; color: var(--fg); letter-spacing: -0.02em; }
+.apple .line .mut { color: var(--muted); }
+.apple .line .sm { font-size: 11.5px; margin-left: 6px; }
+.apple .line .stale { color: var(--warn); }
+
+.synced { margin-left: auto; font-size: 11.5px; color: var(--muted); font-weight: 500; }
+.renpho .grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 14px 0 0; }
+.renpho .v { margin: 0 0 2px; font-size: 19px; font-weight: 650; letter-spacing: -0.03em; }
+.renpho .v em { font-style: normal; font-size: 11px; font-weight: 500; color: var(--muted); margin-left: 2px; }
+.renpho .k { margin: 0; font-size: 11px; color: var(--muted); }
+
+/* --- 달력 칸 --- */
+.cal-cell { aspect-ratio: 1 / 1.15; align-content: start; padding: 4px 3px; gap: 2px; }
+.cal-cell .d { font-size: 12.5px; line-height: 1.1; }
+.cal-cell.sel { border-color: var(--fg); background: var(--line); }
+.cal-cell .tags { display: flex; flex-wrap: wrap; gap: 2px; justify-content: center; }
+.cal-cell .tag {
+  font-style: normal; font-size: 7.5px; line-height: 1.5;
+  padding: 0 3px; border-radius: 4px;
+  background: var(--line); color: var(--muted);
+}
+.cal-cell .tag.on.vd { background: rgba(53,208,127,.28); color: var(--st); }
+.cal-cell .tag.on.dt { background: rgba(91,157,255,.28); color: var(--rp); }
+.cal-cell .cnt { font-size: 8.5px; font-weight: 700; color: var(--st); line-height: 1.2; }
+.cal-cell .ev {
+  position: absolute; bottom: 2px; width: 4px; height: 4px;
+  border-radius: 50%; background: var(--rp);
+}
+
+/* --- 약 / 운동 입력 --- */
+.entry h2 { margin: 0 0 14px; font-size: 15px; font-weight: 620; }
+.sec { margin: 0 0 8px; font-size: 11.5px; color: var(--muted); font-weight: 600; }
+.ex-list + .sec, .med-list + .sec { margin-top: 18px; }
+
+.med-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.med {
+  padding: 9px 16px; border-radius: 11px; border: 1px solid var(--line);
+  background: var(--card-2); color: var(--fg); font: inherit; font-size: 13px; cursor: pointer;
+}
+.med.on { background: rgba(53,208,127,.2); border-color: var(--st); color: var(--st); font-weight: 600; }
+.med.off-day { opacity: .35; cursor: default; }
+
+.ex-list { display: flex; flex-direction: column; gap: 9px; }
+.ex-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.ex-name { font-size: 13.5px; }
+.stepper { display: flex; align-items: center; gap: 6px; }
+.st {
+  width: 32px; height: 32px; border-radius: 9px; border: 1px solid var(--line);
+  background: var(--card-2); color: var(--fg); font-size: 17px; line-height: 1; cursor: pointer;
+}
+.st:active { background: var(--line); }
+.ex-count {
+  width: 62px; text-align: center; padding: 7px 4px;
+  background: var(--card-2); color: var(--fg);
+  border: 1px solid var(--line); border-radius: 9px;
+  font: inherit; font-size: 13.5px; font-variant-numeric: tabular-nums;
+}
+.ex-count::-webkit-outer-spin-button, .ex-count::-webkit-inner-spin-button {
+  -webkit-appearance: none; margin: 0;
+}
+.ex-count { -moz-appearance: textfield; }
+
+.fld-row { display: flex; gap: 8px; }
+.fld-row input { flex: 1; }

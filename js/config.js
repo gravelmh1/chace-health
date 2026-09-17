@@ -30,19 +30,29 @@ export const METRICS_COL = {
   metric: 'metric',
   value: 'value',
   unit: 'unit',
-  measuredAt: 'measured_at', // 실제 "측정 시각". 저장 시각(created_at)이 아님 — 정렬 기준.
-  metadata: 'metadata',      // jsonb. metadata->>local_date = 'YYYY-MM-DD' (LA 기준 날짜)
+  // 실제 측정 시각 컬럼. 이 테이블에 measured_at / created_at 은 존재하지 않는다.
+  // 모든 "최신값" 정렬의 기준.
+  recordedAt: 'recorded_at',
+  metadata: 'metadata', // jsonb. local_date, aggregation, complete_day 등
+  updatedAt: 'updated_at',
 };
 
 export const CALENDAR_TABLE = 'health_calendar_events';
 
 export const CALENDAR_COL = {
   profileId: 'profile_id',
+  calendarId: 'calendar_id',
+  eventId: 'event_id',
   title: 'title',
-  startsAt: 'starts_at',
-  endsAt: 'ends_at',
-  source: 'source',
+  category: 'category',   // 기본값 '운동'
+  startAt: 'start_at',    // starts_at 아님
+  endAt: 'end_at',        // ends_at 아님
+  location: 'location',
+  source: 'source',       // 기본값 'google_calendar'
 };
+
+/** 달력에서 운동 일정으로 취급할 category */
+export const WORKOUT_CATEGORY = '운동';
 
 // 데이터 소스 이름 (DB 의 source 컬럼 값과 정확히 일치해야 함)
 export const SOURCE = {
@@ -60,8 +70,36 @@ export const SOURCE = {
 // 실기기에서 동작이 검증된 스킴이 있다면 그때 아래 값을 채우세요.
 // 값이 있을 때만 "스킴 먼저 시도 → 실패하면 https 폴백" 경로가 켜집니다.
 // ---------------------------------------------------------------------------
-export const RENPHO_APP_SCHEME = null; // 예: 'renpho://' (검증된 경우에만)
+// 원래 의도는 App Store 가 아니라 RENPHO 앱을 직접 여는 것이다.
+// 이 스킴은 실기기에서 검증되지 않았지만, open-renpho.js 가 숨김 iframe 으로
+// 던지기 때문에 스킴이 틀려도 Safari 오류 페이지가 뜨지 않는다.
+// (location 을 직접 바꾸면 "address is invalid" 가 뜬다 — 그래서 안 그런다)
+// 앱으로 전환되지 않으면 아래 https 주소로 폴백한다.
+export const RENPHO_APP_SCHEME = 'renpho://';
 
-// 항상 유효한 https 폴백. 앱이 설치돼 있으면 iOS 가 App Store 링크에서
-// 앱으로 전환해 주고, 없으면 설치 페이지가 열립니다. 어느 쪽이든 오류창은 없습니다.
+// 항상 유효한 https 폴백. 앱이 설치돼 있으면 iOS 가 이 링크에서 앱으로 전환해 주고,
+// 없으면 설치 페이지가 열린다. 어느 쪽이든 오류창은 없다.
 export const RENPHO_FALLBACK_URL = 'https://apps.apple.com/us/search?term=RENPHO%20Health';
+
+// ---------------------------------------------------------------------------
+// 약 / 운동 기록
+//
+// 앱에서 직접 입력하는 값이라 Supabase 동기화 데이터와 별개로 저장한다.
+// health_external_metrics 를 덮어쓰지 않는다.
+// ---------------------------------------------------------------------------
+
+export const MEDICATIONS = [
+  { id: 'vitaminD', label: '비타민D', short: '비D', daily: true },
+  // 두타는 "복용 예정일"에만 표시된다. 원본 앱의 주기를 확인할 수 없어
+  // 기본값을 매일(1일)로 두었다. 설정에서 주기와 기준일을 바꿀 수 있다.
+  { id: 'duta', label: '두타', short: '두타', daily: false },
+];
+
+export const DUTA_DEFAULT_INTERVAL_DAYS = 1;
+
+export const EXERCISES = [
+  { id: 'pushup', label: '푸쉬업' },
+  { id: 'dumbbell', label: '덤벨' },
+  { id: 'triceps', label: '삼두' },
+  { id: 'shoulder', label: '어깨' },
+];

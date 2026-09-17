@@ -16,8 +16,8 @@
 
   <header class="top">
     <div>
-      <h1>Chace, health</h1>
-      <p id="status" class="status">불러오는 중…</p>
+      <p id="today-label" class="today">—</p>
+      <h1>내 건강</h1>
     </div>
     <div class="actions">
     <button id="setup-btn" class="refresh" type="button" aria-label="설정">
@@ -38,40 +38,23 @@
     </div>
   </header>
 
+  <p id="status" class="status">불러오는 중…</p>
   <p id="errors" class="errors" hidden></p>
 
-  <section class="row">
-    <article class="card metric">
-      <div class="card-head"><span class="dot hr"></span>심박수</div>
-      <p class="big"><span id="hr-value">—</span><span class="unit">BPM</span></p>
-      <p id="hr-time" class="sub">—</p>
-    </article>
-
-    <article class="card metric">
-      <div class="card-head"><span class="dot st"></span>걸음수</div>
-      <p class="big"><span id="steps-value">—</span><span class="unit">steps</span></p>
-      <p id="steps-note" class="sub">—</p>
-    </article>
+  <section class="card summary">
+    <div>
+      <p class="k">오늘 운동</p>
+      <p class="v"><span id="sum-ex">0</span><em>회</em></p>
+    </div>
+    <div>
+      <p class="k">약</p>
+      <p class="v"><span id="sum-med">0/0</span><em>완료</em></p>
+    </div>
+    <div>
+      <p class="k">체중</p>
+      <p class="v"><span id="sum-weight">—</span><em>kg</em></p>
+    </div>
   </section>
-
-  <article id="renpho-card" class="card renpho" role="button" tabindex="0">
-    <div class="card-head">
-      <span class="dot rp"></span>RENPHO Health
-      <svg class="chev" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
-        <path d="M9 18l6-6-6-6" fill="none" stroke="currentColor"
-              stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>
-    </div>
-
-    <div class="grid4">
-      <div><p class="k">체중</p><p class="v"><span id="renpho-weight">—</span><em>kg</em></p></div>
-      <div><p class="k">체지방률</p><p class="v"><span id="renpho-fat">—</span><em>%</em></p></div>
-      <div><p class="k">BMI</p><p class="v"><span id="renpho-bmi">—</span></p></div>
-      <div><p class="k">근육량</p><p class="v"><span id="renpho-lean">—</span><em>kg</em></p></div>
-    </div>
-
-    <p class="sub">측정 <span id="renpho-synced">—</span></p>
-  </article>
 
   <section class="card cal">
     <div class="cal-head">
@@ -81,12 +64,39 @@
     </div>
     <div class="dow"><span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span></div>
     <div id="cal-grid" class="cal-grid"></div>
-    <p class="legend">
-      <span><i class="sw wk"></i>운동 기록</span>
-      <span><i class="sw ev"></i>캘린더 일정</span>
-      <span class="hint">날짜를 눌러 운동 횟수 입력</span>
-    </p>
   </section>
+
+  <section class="card entry">
+    <h2 id="entry-label">—</h2>
+
+    <h3 class="sec">약</h3>
+    <div id="med-list" class="med-list"></div>
+
+    <h3 class="sec">운동</h3>
+    <div id="ex-list" class="ex-list"></div>
+  </section>
+
+  <article class="card apple">
+    <div class="card-head"><span class="ic hr">♥</span>Apple 건강</div>
+    <p class="line"><b id="steps-value">—</b> <span id="steps-note">걸음</span></p>
+    <p class="line"><b id="dist-value">—</b> <span class="mut">mi 걷기·달리기</span></p>
+    <p class="line"><b id="hr-value">—</b> <span class="mut">BPM</span>
+       <span id="hr-time" class="mut sm">—</span></p>
+  </article>
+
+  <article id="renpho-card" class="card renpho" role="button" tabindex="0">
+    <div class="card-head">
+      <span class="ic rp">R</span>RENPHO
+      <span id="renpho-synced" class="synced">—</span>
+    </div>
+
+    <div class="grid4">
+      <div><p class="v"><span id="renpho-weight">—</span><em>kg</em></p><p class="k">체중</p></div>
+      <div><p class="v"><span id="renpho-fat">—</span><em>%</em></p><p class="k">체지방</p></div>
+      <div><p class="v"><span id="renpho-bmi">—</span></p><p class="k">BMI</p></div>
+      <div><p class="v"><span id="renpho-lean">—</span><em>kg</em></p><p class="k">제지방</p></div>
+    </div>
+  </article>
 
   <div id="setup" class="sheet" hidden>
     <div class="sheet-inner" role="dialog" aria-modal="true" aria-label="설정">
@@ -110,6 +120,16 @@
         <span>profile_id</span>
         <input id="setup-profile" type="text" spellcheck="false" autocapitalize="off" autocomplete="off">
       </label>
+
+      <label class="fld">
+        <span>두타 복용 주기 (일) · 기준일</span>
+        <div class="fld-row">
+          <input id="setup-duta-interval" type="number" min="1" step="1" inputmode="numeric">
+          <input id="setup-duta-anchor" type="date">
+        </div>
+      </label>
+      <p class="note">원본 앱의 두타 주기를 확인할 수 없어 기본값을 매일(1일)로 두었습니다.
+        실제 주기를 넣으면 달력에 복용 예정일만 표시됩니다.</p>
 
       <div class="sheet-btns">
         <button id="setup-save" class="btn primary" type="button">저장하고 확인</button>

@@ -91,3 +91,40 @@ export function toDate(value) {
   const d = new Date(s);
   return isNaN(d) ? null : d;
 }
+
+/** '9월 17일 (목)' — 상단 헤더용 (LA 기준) */
+export function formatHeaderDate(dateStr) {
+  const d = dateStr ? new Date(`${dateStr}T12:00:00Z`) : new Date();
+  const parts = new Intl.DateTimeFormat('ko-KR', {
+    timeZone: dateStr ? 'UTC' : TIME_ZONE,
+    month: 'long',
+    day: 'numeric',
+    weekday: 'short',
+  }).formatToParts(d);
+  const get = (t) => parts.find((p) => p.type === t)?.value ?? '';
+  return `${get('month')} ${get('day')}일 (${get('weekday')})`;
+}
+
+/** '9/17 오전 10:07' — RENPHO 동기화 시각 표기 (LA 기준)
+ *
+ * 오전/오후는 직접 만든다. 런타임(Node/브라우저)의 ICU 데이터에 따라
+ * ko-KR + hour12 가 'AM' 을 돌려주는 경우가 있어 표기가 흔들린다.
+ */
+export function formatSyncTime(value) {
+  const d = toDate(value);
+  if (!d) return '—';
+
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: TIME_ZONE,
+    month: 'numeric', day: 'numeric',
+    hour: 'numeric', minute: '2-digit', hour12: false,
+  }).formatToParts(d);
+  const get = (t) => parts.find((p) => p.type === t)?.value ?? '';
+
+  let hour = Number(get('hour')) % 24;
+  const period = hour < 12 ? '오전' : '오후';
+  let h12 = hour % 12;
+  if (h12 === 0) h12 = 12;
+
+  return `${get('month')}/${get('day')} ${period} ${h12}:${get('minute')}`;
+}

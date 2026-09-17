@@ -11,28 +11,35 @@
 import { fetchDashboard } from './health-queries.js';
 import { isConfigured } from './supabase.js';
 import { openSetup, initSetup } from './setup.js';
-import { formatDateTime, formatDate, formatRelative, laToday } from './time.js';
-import { openRenpho } from './open-renpho.js';
 import {
-  buildMonthGrid, fetchCalendarEvents, loadWorkouts, saveWorkoutCount,
-} from './calendar.js';
+  formatSyncTime, formatRelative, formatHeaderDate, laToday,
+} from './time.js';
+import { openRenpho } from './open-renpho.js';
+import { buildMonthGrid, fetchCalendarEvents } from './calendar.js';
+import {
+  loadLog, dayEntry, setMed, setExercise, exerciseTotal,
+  medsDueOn, medProgress, isDutaDay, MEDICATIONS, EXERCISES,
+} from './tracker.js';
 
 const $ = (id) => document.getElementById(id);
-
 const DASH = '—';
+const METERS_PER_MILE = 1609.344;
 
-/** 숫자 포맷. null 이면 대시(측정값 없음) — 절대 0 으로 대체하지 않는다. */
+/** 측정값이 없으면 대시. 절대 0 으로 대체하지 않는다. */
 function num(v, digits = 1) {
-  if (v === null || v === undefined || !Number.isFinite(v)) return DASH;
-  return v.toFixed(digits);
+  return v === null || v === undefined || !Number.isFinite(v) ? DASH : v.toFixed(digits);
 }
-
 function int(v) {
-  if (v === null || v === undefined || !Number.isFinite(v)) return DASH;
-  return Math.round(v).toLocaleString('en-US');
+  return v === null || v === undefined || !Number.isFinite(v)
+    ? DASH : Math.round(v).toLocaleString('en-US');
 }
 
-// --- 대시보드 ---------------------------------------------------------------
+let selectedDate = laToday();
+let viewYear;
+let viewMonth; // 1-12
+let lastWeight = null;
+
+// --- 건강 데이터 카드 ---------------------------------------------------------
 
 function renderRenpho(r) {
   $('renpho-weight').textContent = num(r?.bodyMass?.value, 1);
@@ -41,32 +48,38 @@ function renderRenpho(r) {
   $('renpho-lean').textContent = num(r?.leanBodyMass?.value, 2);
 
   $('renpho-synced').textContent = r?.syncedAt
-    ? `${formatDateTime(r.syncedAt)} · ${formatRelative(r.syncedAt)}`
+    ? `${formatSyncTime(r.syncedAt)} 동기화`
     : '측정 기록 없음';
+
+  lastWeight = r?.bodyMass?.value ?? null;
+  $('sum-weight').textContent = num(lastWeight, 1);
 }
 
-function renderHeartRate(hr) {
-  $('hr-value').textContent = int(hr?.value);
-  $('hr-time').textContent = hr?.measuredAt
-    ? `${formatDateTime(hr.measuredAt)} · ${formatRelative(hr.measuredAt)}`
-    : '측정 기록 없음';
-}
-
-function renderSteps(s) {
-  $('steps-value').textContent = int(s?.value);
-
+function renderApple(d) {
+  // 걸음수
+  $('steps-value').textContent = int(d.steps?.value);
   const note = $('steps-note');
-  if (!s) {
-    note.textContent = '기록 없음';
+  if (!d.steps) {
+    note.textContent = '걸음 · 기록 없음';
     note.classList.remove('stale');
-  } else if (s.isToday) {
-    // 오늘은 아직 진행 중이므로 "현재까지" 라고 명시한다.
-    note.textContent = `오늘 (${formatDate(laToday() + 'T12:00:00Z')}) 현재까지`;
+  } else if (d.steps.isToday) {
+    note.textContent = '걸음 · 오늘 현재까지';
     note.classList.remove('stale');
   } else {
-    note.textContent = `오늘 집계 없음 · 마지막 기록 ${s.localDate ?? formatDate(s.measuredAt)}`;
+    note.textContent = `걸음 · 마지막 기록 ${d.steps.localDate ?? ''}`;
     note.classList.add('stale');
   }
+
+  // 거리: m 로 저장되므로 mi 로 환산해 표시한다
+  const meters = d.distance?.value;
+  $('dist-value').textContent =
+    Number.isFinite(meters) ? (meters / METERS_PER_MILE).toFixed(1) : DASH;
+
+  // 심박수
+  $('hr-value').textContent = int(d.heartRate?.value);
+  $('hr-time').textContent = d.heartRate?.recordedAt
+    ? `${formatSyncTime(d.heartRate.recordedAt)} · ${formatRelative(d.heartRate.recordedAt)}`
+    : '기록 없음';
 }
 
 function renderErrors(errors) {
@@ -100,10 +113,9 @@ export async function refresh() {
 
     const d = await fetchDashboard();
     renderRenpho(d.renpho);
-    renderHeartRate(d.heartRate);
-    renderSteps(d.steps);
+    renderApple(d);
     renderErrors(d.errors);
-    $('status').textContent = `업데이트 ${formatDateTime(d.fetchedAt)}`;
+    $('status').textContent = `업데이트 ${formatSyncTime(d.fetchedAt)}`;
   } catch (e) {
     $('status').textContent = '불러오기 실패';
     renderErrors([e.message]);
@@ -113,25 +125,24 @@ export async function refresh() {
   }
 }
 
-// --- 달력 -------------------------------------------------------------------
+// --- 달력 ---------------------------------------------------------------------
 
-let viewYear;
-let viewMonth; // 1-12
+let monthEvents = {};
 
 async function renderCalendar() {
   $('cal-label').textContent = `${viewYear}년 ${viewMonth}월`;
 
-  const grid = $('cal-grid');
-  grid.innerHTML = '';
-
-  const workouts = loadWorkouts();
-  let events = {};
   try {
-    events = await fetchCalendarEvents(viewYear, viewMonth);
+    monthEvents = await fetchCalendarEvents(viewYear, viewMonth);
   } catch (e) {
-    // 달력 일정을 못 가져와도 운동 기록 입력은 계속 동작해야 한다.
+    // 일정을 못 가져와도 약/운동 입력은 계속 동작해야 한다.
+    monthEvents = {};
     console.warn('calendar fetch failed:', e.message);
   }
+
+  const log = loadLog();
+  const grid = $('cal-grid');
+  grid.innerHTML = '';
 
   for (const cell of buildMonthGrid(viewYear, viewMonth)) {
     const el = document.createElement('button');
@@ -146,26 +157,99 @@ async function renderCalendar() {
     }
 
     if (cell.isToday) el.classList.add('today');
+    if (cell.dateStr === selectedDate) el.classList.add('sel');
 
-    const count = workouts[cell.dateStr];
-    if (count) el.classList.add('has-workout');
-    if (events[cell.dateStr]?.length) el.classList.add('has-event');
+    const total = exerciseTotal(log, cell.dateStr);
+    const taken = dayEntry(log, cell.dateStr).meds;
+    const tags = [];
+
+    // 비D 는 매일, 두타는 복용 예정일에만
+    tags.push(`<i class="tag vd${taken.vitaminD ? ' on' : ''}">비D</i>`);
+    if (isDutaDay(cell.dateStr)) {
+      tags.push(`<i class="tag dt${taken.duta ? ' on' : ''}">두타</i>`);
+    }
 
     el.innerHTML =
       `<span class="d">${cell.day}</span>` +
-      (count ? `<span class="wk">${count}</span>` : '') +
-      (events[cell.dateStr]?.length ? '<span class="ev"></span>' : '');
+      `<span class="tags">${tags.join('')}</span>` +
+      (total ? `<span class="cnt">${total}회</span>` : '') +
+      (monthEvents[cell.dateStr]?.length ? '<span class="ev"></span>' : '');
 
-    el.addEventListener('click', () => promptWorkout(cell.dateStr, workouts[cell.dateStr]));
+    el.addEventListener('click', () => {
+      selectedDate = cell.dateStr;
+      renderCalendar();
+      renderEntry();
+    });
     grid.appendChild(el);
   }
 }
 
-function promptWorkout(dateStr, current) {
-  const input = window.prompt(`${dateStr} 운동 횟수 (0 = 삭제)`, current ?? '');
-  if (input === null) return;
-  saveWorkoutCount(dateStr, input);
-  renderCalendar();
+// --- 선택한 날짜의 약 / 운동 입력 ----------------------------------------------
+
+function renderEntry() {
+  $('entry-label').textContent = formatHeaderDate(selectedDate);
+
+  const log = loadLog();
+  const day = dayEntry(log, selectedDate);
+  const due = medsDueOn(selectedDate);
+
+  // 약
+  const medBox = $('med-list');
+  medBox.innerHTML = '';
+  for (const med of MEDICATIONS) {
+    const isDue = due.some((m) => m.id === med.id);
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = `med${day.meds[med.id] ? ' on' : ''}${isDue ? '' : ' off-day'}`;
+    btn.disabled = !isDue;
+    btn.textContent = med.label;
+    btn.title = isDue ? '' : '복용 예정일이 아닙니다';
+    btn.addEventListener('click', () => {
+      setMed(selectedDate, med.id, !day.meds[med.id]);
+      renderEntry();
+      renderCalendar();
+      renderSummary();
+    });
+    medBox.appendChild(btn);
+  }
+
+  // 운동
+  const exBox = $('ex-list');
+  exBox.innerHTML = '';
+  for (const ex of EXERCISES) {
+    const count = day.ex[ex.id] ?? 0;
+    const rowEl = document.createElement('div');
+    rowEl.className = 'ex-row';
+    rowEl.innerHTML =
+      `<span class="ex-name">${ex.label}</span>` +
+      `<div class="stepper">
+         <button type="button" class="st minus" aria-label="${ex.label} 줄이기">−</button>
+         <input class="ex-count" type="number" min="0" step="1" inputmode="numeric" value="${count}">
+         <button type="button" class="st plus" aria-label="${ex.label} 늘리기">+</button>
+       </div>`;
+
+    const input = rowEl.querySelector('.ex-count');
+    const commit = (v) => {
+      setExercise(selectedDate, ex.id, v);
+      renderEntry();
+      renderCalendar();
+      renderSummary();
+    };
+    rowEl.querySelector('.minus').addEventListener('click', () => commit(Number(input.value) - 10));
+    rowEl.querySelector('.plus').addEventListener('click', () => commit(Number(input.value) + 10));
+    input.addEventListener('change', () => commit(input.value));
+
+    exBox.appendChild(rowEl);
+  }
+}
+
+function renderSummary() {
+  const log = loadLog();
+  const today = laToday();
+  $('sum-ex').textContent = exerciseTotal(log, today);
+  const { done, total } = medProgress(log, today);
+  $('sum-med').textContent = `${done}/${total}`;
+  $('sum-weight').textContent = num(lastWeight, 1);
 }
 
 function shiftMonth(delta) {
@@ -175,22 +259,31 @@ function shiftMonth(delta) {
   renderCalendar();
 }
 
-// --- 초기화 -----------------------------------------------------------------
+// --- 초기화 -------------------------------------------------------------------
+
+function renderAllLocal() {
+  renderCalendar();
+  renderEntry();
+  renderSummary();
+}
 
 export function init() {
-  const [y, m] = laToday().split('-');
+  const today = laToday();
+  selectedDate = today;
+  const [y, m] = today.split('-');
   viewYear = Number(y);
   viewMonth = Number(m);
 
-  $('refresh-btn').addEventListener('click', () => { refresh(); renderCalendar(); });
+  $('today-label').textContent = formatHeaderDate();
+
+  $('refresh-btn').addEventListener('click', () => { refresh(); renderAllLocal(); });
   $('setup-btn').addEventListener('click', openSetup);
-  initSetup(() => { refresh(); renderCalendar(); });
   $('renpho-card').addEventListener('click', openRenpho);
   $('cal-prev').addEventListener('click', () => shiftMonth(-1));
   $('cal-next').addEventListener('click', () => shiftMonth(1));
+  initSetup(() => { refresh(); renderAllLocal(); });
 
   const setupOpen = () => !$('setup').hidden;
-
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden && !setupOpen()) refresh();
   });
@@ -199,5 +292,5 @@ export function init() {
   });
 
   refresh();
-  renderCalendar();
+  renderAllLocal();
 }

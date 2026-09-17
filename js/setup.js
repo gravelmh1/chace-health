@@ -6,6 +6,7 @@
 
 import { describeTable } from './supabase.js';
 import { getAnonKey, setAnonKey, inspectKey, getProfileId, setProfileId } from './settings.js';
+import { getDutaSchedule, setDutaSchedule } from './tracker.js';
 import {
   METRICS_TABLE, METRICS_COL, CALENDAR_TABLE, CALENDAR_COL,
 } from './config.js';
@@ -16,6 +17,9 @@ export function openSetup() {
   $('setup').hidden = false;
   $('setup-key').value = getAnonKey();
   $('setup-profile').value = getProfileId();
+  const duta = getDutaSchedule();
+  $('setup-duta-interval').value = duta.intervalDays;
+  $('setup-duta-anchor').value = duta.anchor;
   $('setup-msg').textContent = '';
   $('setup-msg').className = 'setup-msg';
   $('setup-diag').innerHTML = '';
@@ -95,6 +99,7 @@ export function initSetup(onSaved) {
       return; // service_role 키는 저장 자체를 막는다
     }
 
+    setDutaSchedule($('setup-duta-interval').value, $('setup-duta-anchor').value);
     const stored = setAnonKey(key) && setProfileId($('setup-profile').value.trim());
     if (!stored) {
       msg.textContent = '⚠ 브라우저 저장소에 쓸 수 없습니다 (프라이빗 모드일 수 있습니다). js/config.js 에 직접 넣어주세요.';
