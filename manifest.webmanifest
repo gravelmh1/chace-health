@@ -1,0 +1,11 @@
+{
+  "name": "Chace, health",
+  "short_name": "Chace",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0b0d12",
+  "theme_color": "#0b0d12",
+  "icons": [
+    { "src": "icon.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

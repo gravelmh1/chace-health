@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Supabase 스키마 확인</title>
+<style>
+  body { font: 14px/1.5 -apple-system, system-ui, sans-serif;
+         background:#0b0d12; color:#eef1f6; margin:0; padding:20px; }
+  h1 { font-size:18px; } h2 { font-size:14px; color:#8b94a7; margin-top:24px; }
+  pre { background:#161a22; border:1px solid #262c3a; border-radius:10px;
+        padding:12px; overflow:auto; font-size:12px; }
+  .ok { color:#35d07f; } .bad { color:#ff6b6b; }
+</style>
+</head>
+<body>
+<h1>Supabase 스키마 / 데이터 확인</h1>
+<p>js/config.js 에 anon key 를 넣은 뒤 이 페이지를 열면,
+   실제 컬럼 이름과 최신 행이 그대로 출력됩니다.
+   출력 결과를 그대로 복사해서 전달하면 매핑을 정확히 맞출 수 있습니다.</p>
+<pre id="out">실행 중…</pre>
+
+<script type="module">
+import { sb, isConfigured } from '../js/supabase.js';
+import { PROFILE_ID, METRICS_TABLE, CALENDAR_TABLE } from '../js/config.js';
+import { laToday } from '../js/time.js';
+
+const out = document.getElementById('out');
+const log = (...a) => { out.textContent += a.join(' ') + '\n'; };
+
+out.textContent = '';
+
+if (!isConfigured) {
+  log('❌ js/config.js 의 SUPABASE_ANON_KEY 가 아직 비어 있습니다.');
+} else {
+  log('LA 기준 오늘:', laToday());
+  log('profile_id  :', PROFILE_ID);
+  log('');
+
+  // 1. 컬럼 이름 확인 — 아무 행이나 1건
+  const { data: sample, error: e1 } = await sb
+    .from(METRICS_TABLE).select('*').limit(1);
+  if (e1) log('❌', METRICS_TABLE, e1.message);
+  else {
+    log(`== ${METRICS_TABLE} 컬럼 ==`);
+    log(sample?.[0] ? Object.keys(sample[0]).join(', ') : '(행 없음)');
+    log('');
+    log('== 샘플 행 ==');
+    log(JSON.stringify(sample?.[0] ?? null, null, 2));
+    log('');
+  }
+
+  // 2. source / metric 조합별 최신값
+  const { data: recent, error: e2 } = await sb
+    .from(METRICS_TABLE).select('*')
+    .eq('profile_id', PROFILE_ID)
+    .order('measured_at', { ascending: false })
+    .limit(40);
+  if (e2) log('❌ 최근 행 조회:', e2.message);
+  else {
+    log('== 최근 40행의 source / metric 조합 ==');
+    const seen = new Map();
+    for (const r of recent || []) {
+      const k = `${r.source} / ${r.metric}`;
+      if (!seen.has(k)) seen.set(k, r);
+    }
+    for (const [k, r] of seen) {
+      log(`${k.padEnd(36)} = ${r.value} ${r.unit ?? ''}  @ ${r.measured_at}  local_date=${r.metadata?.local_date ?? '(없음)'}`);
+    }
+    log('');
+  }
+
+  // 3. 캘린더 테이블
+  const { data: cal, error: e3 } = await sb
+    .from(CALENDAR_TABLE).select('*').limit(1);
+  if (e3) log('❌', CALENDAR_TABLE, e3.message);
+  else {
+    log(`== ${CALENDAR_TABLE} 컬럼 ==`);
+    log(cal?.[0] ? Object.keys(cal[0]).join(', ') : '(행 없음)');
+    log(JSON.stringify(cal?.[0] ?? null, null, 2));
+  }
+}
+</script>
+</body>
+</html>

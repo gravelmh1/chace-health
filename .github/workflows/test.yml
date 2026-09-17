@@ -1,0 +1,28 @@
+name: test
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install
+      - run: npx playwright install --with-deps chromium
+      - name: 화면 검증
+        run: npm test
+      - name: 시간대 경계 (LA 는 9/17 저녁, UTC 는 9/18)
+        run: NOW=2026-09-18T03:00:00Z npm test
+      - name: 설정 화면 검증
+        run: npm run test:setup
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: screenshots
+          path: tests/*.png

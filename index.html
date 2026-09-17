@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Chace, health">
+<meta name="theme-color" content="#0b0d12">
+<title>Chace, health</title>
+<link rel="stylesheet" href="app.css">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon.png">
+</head>
+<body>
+<main class="wrap">
+
+  <header class="top">
+    <div>
+      <h1>Chace, health</h1>
+      <p id="status" class="status">불러오는 중…</p>
+    </div>
+    <div class="actions">
+    <button id="setup-btn" class="refresh" type="button" aria-label="설정">
+      <svg viewBox="0 0 24 24" width="19" height="19" aria-hidden="true">
+        <circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="2"/>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"
+              fill="none" stroke="currentColor" stroke-width="1.6"/>
+      </svg>
+    </button>
+    <button id="refresh-btn" class="refresh" type="button" aria-label="최신 데이터 불러오기">
+      <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+        <path d="M21 12a9 9 0 1 1-2.64-6.36" fill="none" stroke="currentColor"
+              stroke-width="2" stroke-linecap="round"/>
+        <path d="M21 3v6h-6" fill="none" stroke="currentColor"
+              stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </button>
+    </div>
+  </header>
+
+  <p id="errors" class="errors" hidden></p>
+
+  <section class="row">
+    <article class="card metric">
+      <div class="card-head"><span class="dot hr"></span>심박수</div>
+      <p class="big"><span id="hr-value">—</span><span class="unit">BPM</span></p>
+      <p id="hr-time" class="sub">—</p>
+    </article>
+
+    <article class="card metric">
+      <div class="card-head"><span class="dot st"></span>걸음수</div>
+      <p class="big"><span id="steps-value">—</span><span class="unit">steps</span></p>
+      <p id="steps-note" class="sub">—</p>
+    </article>
+  </section>
+
+  <article id="renpho-card" class="card renpho" role="button" tabindex="0">
+    <div class="card-head">
+      <span class="dot rp"></span>RENPHO Health
+      <svg class="chev" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+        <path d="M9 18l6-6-6-6" fill="none" stroke="currentColor"
+              stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+
+    <div class="grid4">
+      <div><p class="k">체중</p><p class="v"><span id="renpho-weight">—</span><em>kg</em></p></div>
+      <div><p class="k">체지방률</p><p class="v"><span id="renpho-fat">—</span><em>%</em></p></div>
+      <div><p class="k">BMI</p><p class="v"><span id="renpho-bmi">—</span></p></div>
+      <div><p class="k">근육량</p><p class="v"><span id="renpho-lean">—</span><em>kg</em></p></div>
+    </div>
+
+    <p class="sub">측정 <span id="renpho-synced">—</span></p>
+  </article>
+
+  <section class="card cal">
+    <div class="cal-head">
+      <button id="cal-prev" class="navbtn" type="button" aria-label="이전 달">‹</button>
+      <h2 id="cal-label">—</h2>
+      <button id="cal-next" class="navbtn" type="button" aria-label="다음 달">›</button>
+    </div>
+    <div class="dow"><span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span></div>
+    <div id="cal-grid" class="cal-grid"></div>
+    <p class="legend">
+      <span><i class="sw wk"></i>운동 기록</span>
+      <span><i class="sw ev"></i>캘린더 일정</span>
+      <span class="hint">날짜를 눌러 운동 횟수 입력</span>
+    </p>
+  </section>
+
+  <div id="setup" class="sheet" hidden>
+    <div class="sheet-inner" role="dialog" aria-modal="true" aria-label="설정">
+      <div class="sheet-head">
+        <h2>설정</h2>
+        <button id="setup-close" class="navbtn" type="button" aria-label="닫기">✕</button>
+      </div>
+
+      <label class="fld">
+        <span>Supabase anon / public key</span>
+        <textarea id="setup-key" rows="3" spellcheck="false" autocapitalize="off"
+                  autocomplete="off" placeholder="eyJhbGciOi..."></textarea>
+      </label>
+      <p class="note">
+        Supabase 대시보드 → Project Settings → API → <b>anon / public</b> 키.
+        브라우저에만 저장되고 저장소에는 올라가지 않습니다.
+        <b>service_role 키는 넣지 마세요</b> — 입력해도 저장이 거부됩니다.
+      </p>
+
+      <label class="fld">
+        <span>profile_id</span>
+        <input id="setup-profile" type="text" spellcheck="false" autocapitalize="off" autocomplete="off">
+      </label>
+
+      <div class="sheet-btns">
+        <button id="setup-save" class="btn primary" type="button">저장하고 확인</button>
+        <button id="setup-diagnose" class="btn" type="button">스키마 진단</button>
+      </div>
+
+      <p id="setup-msg" class="setup-msg"></p>
+      <ul id="setup-diag" class="diag"></ul>
+    </div>
+  </div>
+
+</main>
+
+<script type="module">
+  import { init } from './js/ui.js';
+  init();
+</script>
+</body>
+</html>
