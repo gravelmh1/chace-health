@@ -5,10 +5,11 @@
 // 하루가 밀리므로, 그리드 생성도 LA 날짜 문자열을 기준으로 한다.
 
 import { selectRows } from './supabase.js';
-import { PROFILE_ID, CALENDAR_TABLE, CALENDAR_COL as CC } from './config.js';
+import { CALENDAR_TABLE, CALENDAR_COL as CC } from './config.js';
+import { getProfileId } from './settings.js';
 import { laDateString, laToday, toDate } from './time.js';
 
-const WORKOUT_KEY = `chace:workouts:${PROFILE_ID}`;
+const workoutKey = () => `chace:workouts:${getProfileId()}`;
 
 // --- 운동 횟수 입력 (로컬 저장) -------------------------------------------
 // 주의: 이건 사용자가 앱에서 직접 입력하는 값이라 Supabase 동기화 데이터와
@@ -16,7 +17,7 @@ const WORKOUT_KEY = `chace:workouts:${PROFILE_ID}`;
 
 export function loadWorkouts() {
   try {
-    return JSON.parse(localStorage.getItem(WORKOUT_KEY) || '{}');
+    return JSON.parse(localStorage.getItem(workoutKey()) || '{}');
   } catch {
     return {};
   }
@@ -28,7 +29,7 @@ export function saveWorkoutCount(dateStr, count) {
   if (!Number.isFinite(n) || n <= 0) delete all[dateStr];
   else all[dateStr] = Math.floor(n);
   try {
-    localStorage.setItem(WORKOUT_KEY, JSON.stringify(all));
+    localStorage.setItem(workoutKey(), JSON.stringify(all));
   } catch { /* 저장 실패해도 화면은 계속 동작 */ }
   return all;
 }
@@ -46,7 +47,7 @@ export async function fetchCalendarEvents(year, month /* 1-12 */) {
   try {
     rows = await selectRows(CALENDAR_TABLE, {
       select: `${CC.title},${CC.startsAt},${CC.endsAt},${CC.source}`,
-      [CC.profileId]: `eq.${PROFILE_ID}`,
+      [CC.profileId]: `eq.${getProfileId()}`,
       // 경계는 넉넉히 잡고(오프셋 여유) LA 날짜로 다시 거른다. 시간대 때문에
       // 월 끝자락 일정이 잘리는 것을 막기 위함.
       [CC.startsAt]: `gte.${first}T00:00:00-08:00`,

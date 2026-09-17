@@ -5,19 +5,31 @@ Apple Health / RENPHO 측정값을 Supabase 에서 읽어 보여주는 개인 �
 
 ## 시작하기
 
-1. `js/config.js` 의 `SUPABASE_ANON_KEY` 에 Supabase **anon / public** 키를 넣습니다.
-   (Supabase 대시보드 → Project Settings → API)
-2. `npm run dev` → http://127.0.0.1:5173
+앱을 열고 **⚙ 설정**에서 Supabase **anon / public** 키를 붙여넣으면 끝입니다.
+코드를 고칠 필요가 없고, 키는 브라우저에만 저장되어 저장소에 올라가지 않습니다.
 
-> **service_role 키는 절대 넣지 마세요.** RLS 를 무시하는 전권 키라 유출되면 DB 전체가 열립니다.
+```bash
+npm install
+npm run dev      # http://127.0.0.1:5173
+```
+
+키를 코드에 박아두고 싶으면 `js/config.js` 의 `SUPABASE_ANON_KEY` 에 넣어도 됩니다.
+(우선순위: 앱에서 입력한 값 → `config.js` 기본값)
+
+> **service_role 키는 넣을 수 없습니다.** 입력해도 저장이 거부됩니다.
+> RLS 를 무시하는 전권 키라 브라우저에 두면 DB 전체가 열립니다.
 > anon 키는 브라우저 노출을 전제로 만들어진 공개 키이고, 실제 접근 통제는 RLS 가 합니다.
 
 ## 스키마 확인
 
-`js/config.js` 상단의 `METRICS_COL` / `CALENDAR_COL` 이 실제 컬럼명과 다르면
-**그 매핑만 고치면** 앱 전체가 따라갑니다. 쿼리 코드에는 컬럼명을 흩뿌려두지 않았습니다.
+**⚙ 설정 → 스키마 진단** 을 누르면 실제 테이블을 읽어서
+`js/config.js` 의 컬럼 매핑이 맞는지 그 자리에서 대조해 보여줍니다.
+틀린 컬럼이 있으면 실제 컬럼 목록까지 같이 뜹니다.
 
-실제 스키마는 `tools/schema-probe.html` 을 브라우저로 열면 그대로 출력됩니다.
+매핑이 다르면 `js/config.js` 상단의 `METRICS_COL` / `CALENDAR_COL` **그것만 고치면**
+앱 전체가 따라갑니다. 쿼리 코드에는 컬럼명을 흩뿌려두지 않았습니다.
+
+원시 데이터까지 보려면 `tools/schema-probe.html` 을 여세요.
 
 현재 코드가 가정하는 구조:
 
@@ -48,19 +60,23 @@ Apple Health / RENPHO 측정값을 Supabase 에서 읽어 보여주는 개인 �
 
 ```bash
 npm install
-npm test
+npm run test:all
 ```
 
-실제 Chromium 에서 앱을 띄우고 Supabase REST 응답을 픽스처로 가로채,
-화면에 찍힌 값을 검증합니다. 픽스처에는 옛날 행(9/15)과 최신 행(9/17)이 **둘 다** 들어있어
-정렬·필터가 틀리면 테스트가 실패합니다. 브라우저 시간대는 일부러 `Asia/Seoul` 로 두고
-LA 기준 표시가 흔들리지 않는지 확인합니다.
+| 명령 | 내용 |
+|---|---|
+| `npm test` | 실제 Chromium 에서 앱을 띄우고 화면에 찍힌 값을 검증 (17개) |
+| `NOW=2026-09-18T03:00:00Z npm test` | LA 는 9/17 저녁, UTC 는 이미 9/18 인 시간대 경계 |
+| `npm run test:setup` | 설정 화면 · service_role 키 차단 · 키 유지 (14개) |
 
-시간대 경계 시나리오:
+Supabase REST 응답을 픽스처로 가로채되, 앱이 만든 쿼리 문자열을 실제로 해석해서
+결과를 돌려줍니다 — **쿼리가 틀리면 틀린 값이 화면에 뜨고 테스트가 실패합니다.**
 
-```bash
-NOW=2026-09-18T03:00:00Z npm test   # LA 는 9/17 저녁, UTC 는 이미 9/18
-```
+픽스처에는 옛날 행(9/15)과 최신 행(9/17)이 **둘 다** 들어있고,
+`measured_at` 과 `created_at` 의 순서를 일부러 뒤집어 놨습니다.
+저장시각으로 정렬하는 코드는 이 픽스처에서 반드시 실패합니다.
+
+브라우저 시간대는 일부러 `Asia/Seoul` 로 두고 LA 기준 표시가 흔들리지 않는지 확인합니다.
 
 ## RENPHO 카드 클릭
 
@@ -74,5 +90,23 @@ iframe 을 쓰는 이유는 실패해도 Safari 오류 페이지가 뜨지 않�
 
 ## 배포
 
-빌드가 없으므로 저장소를 그대로 정적 호스팅(Vercel / Cloudflare Pages / Netlify)에 연결하면 됩니다.
+빌드 단계가 없으므로 저장소를 그대로 정적 호스팅에 연결하면 됩니다.
 push 할 때마다 자동 배포되고, 그때부터 "코드 → 배포 → 아이폰 화면"이 한 줄로 이어집니다.
+
+- **Vercel** — `vercel.json` 포함. import 할 때 프레임워크는 `Other`, 빌드 명령은 비워둡니다.
+- **Netlify** — `netlify.toml` 포함. 추가 설정 없이 그대로 연결하면 됩니다.
+- **Cloudflare Pages** — 빌드 명령 비움, 출력 디렉터리 `/`.
+
+두 설정 파일 모두 `index.html` 과 `js/*` 에 `Cache-Control: no-store` 를 겁니다.
+호스팅이 예전 파일을 계속 내려주면 코드를 고쳐 배포해도 아이폰에는 옛날 앱이 뜨는데,
+이번에 고친 문제와 정확히 같은 종류의 사고입니다.
+
+## 아이폰 홈 화면에 추가
+
+`manifest.webmanifest` 와 `apple-touch-icon` 이 들어있어,
+Safari 에서 공유 → **홈 화면에 추가** 하면 주소창 없는 앱처럼 실행됩니다.
+
+## CI
+
+`.github/workflows/test.yml` 이 push 마다 세 스위트를 모두 돌리고
+검증 스크린샷을 아티팩트로 올립니다.

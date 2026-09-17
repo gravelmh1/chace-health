@@ -135,3 +135,59 @@ h1 { margin: 0; font-size: 24px; letter-spacing: -0.02em; }
   .row { grid-template-columns: 1fr; }
   .big { font-size: 30px; }
 }
+
+/* --- 설정 시트 --- */
+.actions { display: flex; gap: 8px; flex: none; }
+
+.sheet {
+  position: fixed; inset: 0; z-index: 50;
+  background: rgba(0,0,0,.6); backdrop-filter: blur(3px);
+  display: flex; align-items: flex-end; justify-content: center;
+  padding: 16px; overflow-y: auto;
+}
+.sheet[hidden] { display: none; }
+.sheet-inner {
+  width: 100%; max-width: 520px; margin: auto 0 0;
+  background: var(--card); border: 1px solid var(--line);
+  border-radius: var(--r); padding: 18px;
+  padding-bottom: calc(18px + env(safe-area-inset-bottom));
+}
+.sheet-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.sheet-head h2 { margin: 0; font-size: 17px; }
+
+.fld { display: block; margin-bottom: 10px; }
+.fld span { display: block; font-size: 12px; color: var(--muted); margin-bottom: 5px; }
+.fld textarea, .fld input {
+  width: 100%; background: var(--card-2); color: var(--fg);
+  border: 1px solid var(--line); border-radius: 10px; padding: 10px;
+  font: 12.5px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+  resize: vertical;
+}
+.fld textarea:focus, .fld input:focus { outline: 2px solid var(--rp); outline-offset: -1px; }
+
+.note { margin: 0 0 14px; font-size: 11.5px; line-height: 1.5; color: var(--muted); }
+.note b { color: var(--fg); }
+
+.sheet-btns { display: flex; gap: 8px; }
+.btn {
+  flex: 1; padding: 11px; border-radius: 11px; border: 1px solid var(--line);
+  background: var(--card-2); color: var(--fg); font: inherit; font-weight: 600; cursor: pointer;
+}
+.btn.primary { background: var(--rp); border-color: var(--rp); color: #06101f; }
+.btn:active { opacity: .8; }
+
+.setup-msg { margin: 12px 0 0; font-size: 12px; min-height: 1em; }
+.setup-msg.ok { color: var(--st); }
+.setup-msg.bad { color: var(--err); }
+
+.diag { list-style: none; margin: 10px 0 0; padding: 0; font-size: 11.5px; }
+.diag li {
+  padding: 8px 10px; border-radius: 9px; background: var(--card-2);
+  margin-bottom: 6px; line-height: 1.5;
+}
+.diag li b { margin-right: 6px; }
+.diag li.ok b { color: var(--st); }
+.diag li.bad b { color: var(--err); }
+.diag li.bad { background: rgba(255,107,107,.1); }
+.diag li span { display: block; color: var(--muted); margin-top: 3px; word-break: break-all; }
+.diag li.pending { color: var(--muted); }

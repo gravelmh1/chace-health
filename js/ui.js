@@ -10,6 +10,7 @@
 
 import { fetchDashboard } from './health-queries.js';
 import { isConfigured } from './supabase.js';
+import { openSetup, initSetup } from './setup.js';
 import { formatDateTime, formatDate, formatRelative, laToday } from './time.js';
 import { openRenpho } from './open-renpho.js';
 import {
@@ -90,9 +91,10 @@ export async function refresh() {
   $('status').textContent = '불러오는 중…';
 
   try {
-    if (!isConfigured) {
-      $('status').textContent = 'js/config.js 에 Supabase anon key 를 넣어주세요';
-      renderErrors(['SUPABASE_ANON_KEY 미설정']);
+    if (!isConfigured()) {
+      $('status').textContent = 'Supabase anon key 가 필요합니다';
+      renderErrors(['설정(⚙)에서 anon key 를 입력하세요']);
+      openSetup();
       return;
     }
 
@@ -181,15 +183,19 @@ export function init() {
   viewMonth = Number(m);
 
   $('refresh-btn').addEventListener('click', () => { refresh(); renderCalendar(); });
+  $('setup-btn').addEventListener('click', openSetup);
+  initSetup(() => { refresh(); renderCalendar(); });
   $('renpho-card').addEventListener('click', openRenpho);
   $('cal-prev').addEventListener('click', () => shiftMonth(-1));
   $('cal-next').addEventListener('click', () => shiftMonth(1));
 
+  const setupOpen = () => !$('setup').hidden;
+
   document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) refresh();
+    if (!document.hidden && !setupOpen()) refresh();
   });
   window.addEventListener('pageshow', (e) => {
-    if (e.persisted) refresh(); // bfcache 복원
+    if (e.persisted && !setupOpen()) refresh(); // bfcache 복원
   });
 
   refresh();

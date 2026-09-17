@@ -19,8 +19,9 @@
 
 import { selectOne } from './supabase.js';
 import {
-  PROFILE_ID, METRICS_TABLE, METRICS_COL as C, SOURCE,
+  METRICS_TABLE, METRICS_COL as C, SOURCE,
 } from './config.js';
+import { getProfileId } from './settings.js';
 import { laToday } from './time.js';
 
 const SELECT = `${C.value},${C.unit},${C.measuredAt},${C.metadata}`;
@@ -46,7 +47,7 @@ export async function fetchLatestMetric(source, metric) {
   try {
     const row = await selectOne(METRICS_TABLE, {
       select: SELECT,
-      [C.profileId]: `eq.${PROFILE_ID}`,
+      [C.profileId]: `eq.${getProfileId()}`,
       [C.source]: `eq.${source}`,
       [C.metric]: `eq.${metric}`,
       order: `${C.measuredAt}.desc`,
@@ -121,7 +122,7 @@ export async function fetchStepsToday() {
   try {
     row = await selectOne(METRICS_TABLE, {
       select: SELECT,
-      [C.profileId]: `eq.${PROFILE_ID}`,
+      [C.profileId]: `eq.${getProfileId()}`,
       [C.source]: `eq.${SOURCE.apple}`,
       [C.metric]: 'eq.stepCount',
       // LA 기준 날짜 문자열로 직접 매칭. UTC timestamp 범위로 자르지 않는다.

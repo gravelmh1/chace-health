@@ -38,7 +38,12 @@ const server = http.createServer((req, res) => {
 await new Promise((r) => server.listen(0, r));
 const base = `http://127.0.0.1:${server.address().port}`;
 
-const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
+// 이 컨테이너에는 chromium 이 고정 경로에 있고, CI 에서는 playwright 가 직접 받는다.
+const CHROME = process.env.CHROME_PATH
+  || (fs.existsSync('/opt/pw-browsers/chromium-1194/chrome-linux/chrome')
+      ? '/opt/pw-browsers/chromium-1194/chrome-linux/chrome'
+      : undefined);
+const browser = await chromium.launch(CHROME ? { executablePath: CHROME } : {});
 const ctx = await browser.newContext({
   viewport: { width: 390, height: 844 },       // iPhone 크기
   deviceScaleFactor: 2,

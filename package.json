@@ -6,6 +6,8 @@
   "type": "module",
   "scripts": {
     "test": "node tests/verify.mjs",
+    "test:setup": "node tests/verify-setup.mjs",
+    "test:all": "npm test && NOW=2026-09-18T03:00:00Z npm test && npm run test:setup",
     "dev": "node tests/serve.mjs"
   },
   "devDependencies": {

@@ -1,0 +1,22 @@
+[build]
+  publish = "."
+  command = ""
+
+# HTML 과 JS 는 캐시하지 않는다.
+# 정적 호스팅이 예전 index.html/js 를 계속 내려주면, 코드를 고쳐 배포해도
+# 아이폰에서는 옛날 앱이 그대로 뜬다 — 이번에 고친 문제와 같은 종류의 사고다.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "no-store, must-revalidate"
+
+[[headers]]
+  for = "/js/*"
+  [headers.values]
+    Cache-Control = "no-store, must-revalidate"
