@@ -1,9 +1,13 @@
 # GitHub Pages 배포 — 외부 계정(Vercel/Netlify) 없이 이 저장소만으로 배포한다.
 #
-# 켜는 법: 저장소 Settings → Pages → Source 를 "GitHub Actions" 로 바꾸면 끝.
-# (private 저장소의 Pages 는 GitHub Pro 이상에서만 동작합니다. 무료 계정이면
-#  저장소를 public 으로 바꾸거나 Vercel/Netlify 를 쓰세요. anon key 는 코드에
-#  들어있지 않고 앱에서 입력하므로, public 으로 바꿔도 키가 노출되지 않습니다.)
+# configure-pages 의 enablement: true 가 Pages 를 자동으로 켜므로
+# Settings 를 직접 건드릴 필요가 없다.
+#
+# 단, private 저장소의 Pages 는 GitHub Pro 이상에서만 동작한다. 무료 플랜이면
+# 이 워크플로가 "Upgrade required" 로 실패하는데, 그때는 저장소를 public 으로
+# 바꾸거나 Vercel/Netlify 를 쓰면 된다.
+# anon key 는 코드에 들어있지 않고 앱에서 입력하므로, public 으로 바꿔도
+# 키가 노출되지 않는다. (DB 접근 통제는 RLS 가 한다)
 
 name: pages
 
@@ -30,6 +34,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/configure-pages@v5
+        with:
+          enablement: true
       - name: 배포 대상만 추리기
         run: |
           mkdir -p _site
