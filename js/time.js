@@ -105,7 +105,7 @@ export function formatHeaderDate(dateStr) {
   return `${get('month')} ${get('day')}일 (${get('weekday')})`;
 }
 
-/** '9/17 오전 10:07' — RENPHO 동기화 시각 표기 (LA 기준)
+/** '9. 17. 오전 10:07' — 동기화/측정 시각 표기 (LA 기준)
  *
  * 오전/오후는 직접 만든다. 런타임(Node/브라우저)의 ICU 데이터에 따라
  * ko-KR + hour12 가 'AM' 을 돌려주는 경우가 있어 표기가 흔들린다.
@@ -121,10 +121,27 @@ export function formatSyncTime(value) {
   }).formatToParts(d);
   const get = (t) => parts.find((p) => p.type === t)?.value ?? '';
 
-  let hour = Number(get('hour')) % 24;
+  const hour = Number(get('hour')) % 24;
   const period = hour < 12 ? '오전' : '오후';
-  let h12 = hour % 12;
-  if (h12 === 0) h12 = 12;
+  const h12 = hour % 12 === 0 ? 12 : hour % 12;
 
-  return `${get('month')}/${get('day')} ${period} ${h12}:${get('minute')}`;
+  return `${get('month')}. ${get('day')}. ${period} ${h12}:${get('minute')}`;
+}
+
+/** 'YYYY-MM-DD' 를 n일 이동한 날짜 문자열로. 시간대 영향 없음. */
+export function shiftDate(dateStr, days) {
+  const t = Date.parse(`${dateStr}T00:00:00Z`) + days * 86400000;
+  return new Date(t).toISOString().slice(0, 10);
+}
+
+/** 그 날짜가 속한 주의 일요일 (LA 기준 날짜 문자열) */
+export function weekStart(dateStr) {
+  const dow = new Date(`${dateStr}T00:00:00Z`).getUTCDay();
+  return shiftDate(dateStr, -dow);
+}
+
+/** '9/17' 짧은 라벨 (차트 x축용) */
+export function shortLabel(dateStr) {
+  const [, m, d] = dateStr.split('-');
+  return `${Number(m)}/${Number(d)}`;
 }

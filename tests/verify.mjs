@@ -76,13 +76,32 @@ await page.addInitScript(`{
   Date = MockDate;
 }`);
 
+// 운동/약 기록을 원본 화면과 같은 값으로 심는다.
+// (localStorage 에 저장되는 사용자 입력값 — Supabase 데이터와는 무관)
+const PROFILE = '6eb29763-315a-46b7-bcf7-da24b8f1503e';
+const SEED = {
+  '2026-09-10': { meds: { vitaminD: true },              ex: { pushup: 60,  triceps: 90, shoulder: 60 } },
+  '2026-09-11': { meds: { vitaminD: true, duta: true },  ex: { pushup: 110, triceps: 90, shoulder: 60 } },
+  '2026-09-12': { meds: { vitaminD: true },              ex: { pushup: 60 } },
+  '2026-09-14': { meds: { vitaminD: true },              ex: { pushup: 60 } },
+  '2026-09-15': { meds: { vitaminD: true, duta: true },  ex: { pushup: 110 } },
+  '2026-09-16': { meds: { vitaminD: true },              ex: { pushup: 110 } },
+  '2026-09-17': { meds: { vitaminD: true, duta: true },  ex: { pushup: 110 } },
+};
+await page.addInitScript(([profile, seed]) => {
+  try { localStorage.setItem(`chace:log:${profile}`, JSON.stringify(seed)); } catch {}
+}, [PROFILE, SEED]);
+
 const consoleErrors = [];
 page.on('pageerror', (e) => consoleErrors.push(String(e)));
 page.on('console', (m) => { if (m.type() === 'error') consoleErrors.push(m.text()); });
 
 await page.goto(`${base}/index.html`);
 await page.waitForFunction(
-  () => !document.getElementById('status').textContent.includes('불러오는 중'),
+  () => {
+    const el = document.getElementById('status');
+    return el.hidden || !el.textContent.includes('불러오는 중');
+  },
   { timeout: 15000 },
 );
 await page.waitForTimeout(400);
@@ -94,13 +113,12 @@ const got = {
   bmi: (await text('renpho-bmi')).trim(),
   lean: (await text('renpho-lean')).trim(),
   synced: (await text('renpho-synced')).trim(),
+  appleSynced: (await text('apple-synced')).trim(),
   hr: (await text('hr-value')).trim(),
   hrTime: (await text('hr-time')).trim(),
   steps: (await text('steps-value')).trim(),
   stepsNote: (await text('steps-note')).trim(),
-  dist: (await text('dist-value')).trim(),
   today: (await text('today-label')).trim(),
-  sumWeight: (await text('sum-weight')).trim(),
   errors: await page.isHidden('#errors'),
 };
 
@@ -109,33 +127,79 @@ const checks = [
   ['RENPHO 체지방률 = 13.2',        got.fat === '13.2'],
   ['RENPHO BMI = 24.0',             got.bmi === '24.0'],
   ['RENPHO 근육량 = 67.96',         got.lean === '67.96'],
-  ['RENPHO 동기화 = 9/17 오전 10:07', got.synced.startsWith('9/17 오전 10:07')],
+  ['RENPHO 동기화 = 9. 17. 오전 10:07', got.synced === '9. 17. 오전 10:07 동기화'],
   ['심박수 = 105',                  got.hr === '105'],
-  ['심박수 시각 = 9/17 오후 12:17', got.hrTime.startsWith('9/17 오후 12:17')],
+  ['심박수 시각 = 9. 17. 오후 12:17 측정', got.hrTime === '9. 17. 오후 12:17 측정'],
   ['걸음수 = 6,482 (일일 집계 행 선택)', got.steps === '6,482'],
   ['걸음수가 더 최신 legacy snapshot(6,100)을 집지 않음', got.steps !== '6,100'],
-  ['거리 = 1.1 mi (1770.3 m 환산)', got.dist === '1.1'],
+  ['거리 = 1.1 mi (1770.3 m 환산)', got.stepsNote.startsWith('1.1 mi')],
+  ['Apple 동기화 시각 표시',        /^\d+\. \d+\. (오전|오후) /.test(got.appleSynced)],
   ['상단 날짜 = 9월 17일 (목)',      got.today === '9월 17일 (목)'],
-  ['요약 체중 = 78.3',               got.sumWeight === '78.3'],
-  ['걸음수가 "기록 없음" 이 아님',   !got.stepsNote.includes('집계 없음') && !got.stepsNote.includes('기록 없음')],
+  ['걸음수가 "기록 없음" 이 아님',   !got.stepsNote.includes('기록 없음')],
   ['걸음수가 0 이 아님',            got.steps !== '0'],
-  ['걸음수 = 오늘 진행중 표시',      got.stepsNote.includes('오늘')],
+
   ['오류 배너 없음',                got.errors === true],
+  ['정상 로드 시 상태줄 숨김',       await page.isHidden('#status')],
   ['JS 런타임 오류 없음',            consoleErrors.length === 0],
 ];
 
 // 달력: LA 9/16(=UTC 9/17 14:00) 과 9/30 야간 일정이 제자리에 찍히는지
-const evDays = await page.$$eval('.cal-cell:has(.ev) .d', (els) => els.map((e) => e.textContent));
-checks.push(['달력 일정 표시됨', evDays.length > 0]);
-// 픽스처의 일정 3건은 LA 기준 9/17, 9/18, 9/30 에 찍혀야 한다.
-// 9/30 건은 UTC 로는 10/1 이라, 월 경계를 UTC 로 자르면 사라진다.
-checks.push([
-  '달력 일정 = LA 기준 17/18/30 일',
-  JSON.stringify(evDays.sort((a, b) => a - b)) === JSON.stringify(['17', '18', '30']),
-]);
+// 3주 달력: 9/6~9/26, 오늘 17일
+const calDays = await page.$$eval('.cal-cell .d', (els) => els.map((e) => e.textContent));
+checks.push(['달력 = 3주 21칸', calDays.length === 21]);
+checks.push(['달력 범위 = 6일~26일', calDays[0] === '6' && calDays[20] === '26']);
 
 const todayCell = await page.$$eval('.cal-cell.today .d', (els) => els.map((e) => e.textContent));
 checks.push(['달력 오늘 = 17일', todayCell.length === 1 && todayCell[0] === '17']);
+
+// 픽스처 일정: LA 기준 9/17(아침 러닝), 9/18(헬스장). 9/30 은 3주 범위 밖.
+const evDays = await page.$$eval('.cal-cell:has(.dot.ev) .d', (els) => els.map((e) => e.textContent));
+checks.push([
+  `달력 일정 = LA 기준 17/18 일 (받은 값: ${evDays.join(',') || '없음'})`,
+  JSON.stringify(evDays) === JSON.stringify(['17', '18']),
+]);
+
+// 두타는 이틀에 한 번 — 원본 화면과 같은 배치(7,9,11,...)인지
+const dutaDays = await page.$$eval('.cal-cell:has(.tag.dt) .d', (els) => els.map((e) => Number(e.textContent)));
+checks.push([
+  `두타 = 격일 (${dutaDays.join(',')})`,
+  dutaDays.length === 10 && dutaDays.every((d) => d % 2 === 1),
+]);
+const vdDays = await page.$$eval('.cal-cell:has(.tag.vd) .d', (els) => els.length);
+checks.push(['비D = 매일 21칸', vdDays === 21]);
+
+// 차트
+const yTicks = await page.$$eval('.chart .ytick', (els) => els.map((e) => e.textContent));
+checks.push([
+  `차트 y눈금 = 0,28,55,83,110 (받은 값: ${yTicks.join(',')})`,
+  JSON.stringify(yTicks) === JSON.stringify(['0', '28', '55', '83', '110']),
+]);
+const xTicks = await page.$$eval('.chart .xtick', (els) => els.map((e) => e.textContent));
+checks.push([
+  `차트 x라벨 = 9/4…9/17 (${xTicks.join(' ')})`,
+  xTicks[0] === '9/4' && xTicks[xTicks.length - 1] === '9/17',
+]);
+const lgVals = await page.$$eval('.lg-item .lg-val', (els) => els.map((e) => e.textContent));
+checks.push([`차트 범례 합계 = 620·0·180·120 (${lgVals.join(' ')})`, lgVals.join(',') === '620회,0회,180회,120회']);
+const calCounts = await page.$$eval('.cal-cell .cnt', (els) => els.map((e) => e.textContent));
+checks.push([
+  `달력 운동 횟수 (${calCounts.join(' ')})`,
+  calCounts.join(',') === '210회,260회,60회,60회,110회,110회,110회',
+]);
+const lgItems = await page.$$eval('.lg-item .lg-name', (els) => els.map((e) => e.textContent));
+checks.push([
+  '차트 범례 = 푸쉬업/덤벨/삼두/어깨',
+  JSON.stringify(lgItems) === JSON.stringify(['푸쉬업', '덤벨', '삼두', '어깨']),
+]);
+const marks = await page.$$eval('.lg-mark', (els) => els.length);
+checks.push(['범례 도형 마커 4개 (색약 대비 보조부호)', marks === 4]);
+
+// 운동 타일
+const tiles = await page.$$eval('.ex-tile .ex-name', (els) => els.map((e) => e.textContent));
+checks.push([
+  '기록하기 타일 = 푸쉬업/덤벨/삼두/어깨',
+  JSON.stringify(tiles) === JSON.stringify(['푸쉬업', '덤벨', '삼두', '어깨']),
+]);
 
 await page.screenshot({
   path: process.env.SHOT || 'tests/screenshot-verified.png',

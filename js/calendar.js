@@ -5,19 +5,17 @@
 // 하루가 밀리므로, 그리드 생성도 UTC 기준 계산 + LA 날짜 문자열로 처리한다.
 
 import { selectRows } from './supabase.js';
-import { CALENDAR_TABLE, CALENDAR_COL as CC, WORKOUT_CATEGORY } from './config.js';
+import { CALENDAR_TABLE, CALENDAR_COL as CC, WORKOUT_CATEGORY, CALENDAR_WEEKS } from './config.js';
 import { getProfileId } from './settings.js';
-import { laDateString, laToday, toDate } from './time.js';
+import { laDateString, laToday, toDate, weekStart, shiftDate } from './time.js';
 
 /**
- * 해당 월(LA 기준)의 일정을 날짜별로 묶어서 반환.
+ * [fromDate, toDate] 범위(LA 기준 날짜 문자열)의 일정을 날짜별로 묶어서 반환.
  * 컬럼은 start_at / end_at 이다 (starts_at / ends_at 아님).
  */
-export async function fetchCalendarEvents(year, month /* 1-12 */) {
-  const first = `${year}-${String(month).padStart(2, '0')}-01`;
-  const nextY = month === 12 ? year + 1 : year;
-  const nextM = month === 12 ? 1 : month + 1;
-  const next = `${nextY}-${String(nextM).padStart(2, '0')}-01`;
+export async function fetchCalendarEvents(fromDate, toDate_) {
+  const first = fromDate;
+  const next = shiftDate(toDate_, 1);
 
   let rows;
   try {
@@ -51,25 +49,32 @@ export async function fetchCalendarEvents(year, month /* 1-12 */) {
 }
 
 /**
- * 해당 월의 달력 칸 배열. 일요일 시작.
- * 각 칸: { dateStr, day, inMonth, isToday }
+ * 기준 날짜가 속한 주를 가운데 둔 3주치 달력.
+ * 일요일 시작이며, 칸은 항상 7 × CALENDAR_WEEKS 개다.
+ *
+ * 월 단위가 아니라 주 단위라 "이번 주 앞뒤"가 항상 같이 보인다.
+ * 월 경계에서 빈 칸이 생기지 않는다.
+ *
+ * 각 칸: { dateStr, day, isToday, isAnchor }
  */
-export function buildMonthGrid(year, month /* 1-12 */) {
-  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
-  // 1일의 요일 (0=일). UTC 로 계산해야 브라우저 시간대 영향을 안 받는다.
-  const firstWeekday = new Date(Date.UTC(year, month - 1, 1)).getUTCDay();
+export function buildWeekGrid(anchorDate, weeks = CALENDAR_WEEKS) {
   const today = laToday();
+  const start = shiftDate(weekStart(anchorDate), -7 * Math.floor((weeks - 1) / 2));
 
   const cells = [];
-  for (let i = 0; i < firstWeekday; i++) {
-    cells.push({ dateStr: null, day: null, inMonth: false, isToday: false });
-  }
-  for (let day = 1; day <= daysInMonth; day++) {
-    const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    cells.push({ dateStr, day, inMonth: true, isToday: dateStr === today });
-  }
-  while (cells.length % 7 !== 0) {
-    cells.push({ dateStr: null, day: null, inMonth: false, isToday: false });
+  for (let i = 0; i < weeks * 7; i++) {
+    const dateStr = shiftDate(start, i);
+    cells.push({
+      dateStr,
+      day: Number(dateStr.slice(8, 10)),
+      isToday: dateStr === today,
+      isAnchor: dateStr === anchorDate,
+    });
   }
   return cells;
+}
+
+/** 그리드의 첫날 / 마지막날 (일정 조회 범위) */
+export function gridRange(cells) {
+  return [cells[0].dateStr, cells[cells.length - 1].dateStr];
 }

@@ -95,11 +95,21 @@ export const MEDICATIONS = [
   { id: 'duta', label: '두타', short: '두타', daily: false },
 ];
 
-export const DUTA_DEFAULT_INTERVAL_DAYS = 1;
+// 원본 앱 화면에서 두타는 이틀에 한 번(7, 9, 11, 13, 15, 17, 19...) 표시된다.
+export const DUTA_DEFAULT_INTERVAL_DAYS = 2;
 
+// shape 은 색 없이도 계열을 구분하기 위한 보조 부호다.
+// 색약(적록) 환경에서 삼두(초록) ↔ 덤벨(주황) 선이 거의 겹치기 때문에,
+// 원본이 이미 타일에 쓰고 있는 도형을 차트 마커로도 그대로 쓴다.
 export const EXERCISES = [
-  { id: 'pushup', label: '푸쉬업' },
-  { id: 'dumbbell', label: '덤벨' },
-  { id: 'triceps', label: '삼두' },
-  { id: 'shoulder', label: '어깨' },
+  { id: 'pushup',   label: '푸쉬업', shape: 'arrow',   color: '#2F7BEF' },
+  { id: 'dumbbell', label: '덤벨',   shape: 'diamond', color: '#F5A623' },
+  { id: 'triceps',  label: '삼두',   shape: 'circle',  color: '#34C759' },
+  { id: 'shoulder', label: '어깨',   shape: 'triangle',color: '#9B59E8' },
 ];
+
+/** 차트에 표시할 기간 (일) */
+export const CHART_DAYS = 14;
+
+/** 달력에 표시할 주 수 (지난주 · 이번주 · 다음주) */
+export const CALENDAR_WEEKS = 3;

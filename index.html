@@ -4,8 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Chace, health">
-<meta name="theme-color" content="#0b0d12">
+<meta name="theme-color" content="#F2F2F7">
 <title>Chace, health</title>
 <link rel="stylesheet" href="app.css">
 <link rel="manifest" href="manifest.webmanifest">
@@ -17,92 +18,121 @@
   <header class="top">
     <div>
       <p id="today-label" class="today">—</p>
-      <h1>내 건강</h1>
+      <h1>Chace, health</h1>
     </div>
     <div class="actions">
-    <button id="setup-btn" class="refresh" type="button" aria-label="설정">
-      <svg viewBox="0 0 24 24" width="19" height="19" aria-hidden="true">
-        <circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="2"/>
-        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"
-              fill="none" stroke="currentColor" stroke-width="1.6"/>
-      </svg>
-    </button>
-    <button id="refresh-btn" class="refresh" type="button" aria-label="최신 데이터 불러오기">
-      <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
-        <path d="M21 12a9 9 0 1 1-2.64-6.36" fill="none" stroke="currentColor"
-              stroke-width="2" stroke-linecap="round"/>
-        <path d="M21 3v6h-6" fill="none" stroke="currentColor"
-              stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>
-    </button>
+      <button id="refresh-btn" class="latest" type="button">
+        <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true">
+          <path d="M21 12a9 9 0 1 1-2.64-6.36" fill="none" stroke="currentColor"
+                stroke-width="2.4" stroke-linecap="round"/>
+          <path d="M21 3v6h-6" fill="none" stroke="currentColor"
+                stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        최신
+      </button>
+      <button id="setup-btn" class="iconbtn" type="button" aria-label="설정">
+        <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true">
+          <circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="2"/>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"
+                fill="none" stroke="currentColor" stroke-width="1.6"/>
+        </svg>
+      </button>
     </div>
   </header>
 
   <p id="status" class="status">불러오는 중…</p>
   <p id="errors" class="errors" hidden></p>
 
-  <section class="card summary">
-    <div>
-      <p class="k">오늘 운동</p>
-      <p class="v"><span id="sum-ex">0</span><em>회</em></p>
+  <!-- Apple 건강 -->
+  <article class="card apple">
+    <div class="brand">
+      <span class="badge apple-badge" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="17" height="17">
+          <path d="M12 21s-7.5-4.6-7.5-9.7A4.3 4.3 0 0 1 12 8.6a4.3 4.3 0 0 1 7.5 2.7C19.5 16.4 12 21 12 21z" fill="currentColor"/>
+        </svg>
+      </span>
+      <div>
+        <p class="bname">Apple 건강</p>
+        <p id="apple-synced" class="bsync">—</p>
+      </div>
     </div>
-    <div>
-      <p class="k">약</p>
-      <p class="v"><span id="sum-med">0/0</span><em>완료</em></p>
+    <div class="duo">
+      <div>
+        <p class="big"><span id="steps-value">—</span></p>
+        <p class="lab">걸음</p>
+        <p id="steps-note" class="det">—</p>
+      </div>
+      <div>
+        <p class="big"><span id="hr-value">—</span><em>BPM</em></p>
+        <p class="lab">심박수</p>
+        <p id="hr-time" class="det">—</p>
+      </div>
     </div>
-    <div>
-      <p class="k">체중</p>
-      <p class="v"><span id="sum-weight">—</span><em>kg</em></p>
-    </div>
-  </section>
+  </article>
 
+  <!-- RENPHO -->
+  <article id="renpho-card" class="card renpho" role="button" tabindex="0">
+    <div class="brand">
+      <span class="badge renpho-badge" aria-hidden="true">R</span>
+      <div>
+        <p class="bname">RENPHO</p>
+        <p id="renpho-synced" class="bsync">—</p>
+      </div>
+    </div>
+    <div class="quad">
+      <div><p class="big"><span id="renpho-weight">—</span><em>kg</em></p><p class="lab">체중</p></div>
+      <div><p class="big"><span id="renpho-fat">—</span><em>%</em></p><p class="lab">체지방</p></div>
+      <div><p class="big"><span id="renpho-bmi">—</span></p><p class="lab">BMI</p></div>
+      <div><p class="big"><span id="renpho-lean">—</span><em>kg</em></p><p class="lab">제지방</p></div>
+    </div>
+  </article>
+
+  <!-- 3주 기록 -->
   <section class="card cal">
     <div class="cal-head">
-      <button id="cal-prev" class="navbtn" type="button" aria-label="이전 달">‹</button>
-      <h2 id="cal-label">—</h2>
-      <button id="cal-next" class="navbtn" type="button" aria-label="다음 달">›</button>
+      <h2>3주 기록</h2>
+      <button id="cal-today" class="pill" type="button">오늘</button>
     </div>
-    <div class="dow"><span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span></div>
+    <div class="dow">
+      <span class="sun">일</span><span>월</span><span>화</span><span>수</span>
+      <span>목</span><span>금</span><span class="sat">토</span>
+    </div>
     <div id="cal-grid" class="cal-grid"></div>
+    <p class="cal-legend">
+      <span><i class="dot ex"></i>운동</span>
+      <span><i class="dot ev"></i>일정</span>
+    </p>
   </section>
 
+  <!-- 기록하기 -->
   <section class="card entry">
-    <h2 id="entry-label">—</h2>
-
+    <div class="entry-head">
+      <div>
+        <p id="entry-date" class="today">—</p>
+        <h2>기록하기</h2>
+      </div>
+      <button id="entry-add" class="plusbtn" type="button" aria-label="모든 운동 10회씩 추가">+</button>
+    </div>
+    <div id="ex-grid" class="ex-grid"></div>
     <h3 class="sec">약</h3>
     <div id="med-list" class="med-list"></div>
-
-    <h3 class="sec">운동</h3>
-    <div id="ex-list" class="ex-list"></div>
   </section>
 
-  <article class="card apple">
-    <div class="card-head"><span class="ic hr">♥</span>Apple 건강</div>
-    <p class="line"><b id="steps-value">—</b> <span id="steps-note">걸음</span></p>
-    <p class="line"><b id="dist-value">—</b> <span class="mut">mi 걷기·달리기</span></p>
-    <p class="line"><b id="hr-value">—</b> <span class="mut">BPM</span>
-       <span id="hr-time" class="mut sm">—</span></p>
-  </article>
-
-  <article id="renpho-card" class="card renpho" role="button" tabindex="0">
-    <div class="card-head">
-      <span class="ic rp">R</span>RENPHO
-      <span id="renpho-synced" class="synced">—</span>
+  <!-- 최근 2주 운동 -->
+  <section class="card chartcard">
+    <div class="chart-head">
+      <h2>최근 2주 운동</h2>
+      <span class="muted">하루 운동 횟수</span>
     </div>
-
-    <div class="grid4">
-      <div><p class="v"><span id="renpho-weight">—</span><em>kg</em></p><p class="k">체중</p></div>
-      <div><p class="v"><span id="renpho-fat">—</span><em>%</em></p><p class="k">체지방</p></div>
-      <div><p class="v"><span id="renpho-bmi">—</span></p><p class="k">BMI</p></div>
-      <div><p class="v"><span id="renpho-lean">—</span><em>kg</em></p><p class="k">제지방</p></div>
-    </div>
-  </article>
+    <div id="chart-legend" class="chart-legend"></div>
+    <div id="chart-body" class="chart-body"></div>
+  </section>
 
   <div id="setup" class="sheet" hidden>
     <div class="sheet-inner" role="dialog" aria-modal="true" aria-label="설정">
       <div class="sheet-head">
         <h2>설정</h2>
-        <button id="setup-close" class="navbtn" type="button" aria-label="닫기">✕</button>
+        <button id="setup-close" class="pill" type="button" aria-label="닫기">닫기</button>
       </div>
 
       <label class="fld">
@@ -128,8 +158,6 @@
           <input id="setup-duta-anchor" type="date">
         </div>
       </label>
-      <p class="note">원본 앱의 두타 주기를 확인할 수 없어 기본값을 매일(1일)로 두었습니다.
-        실제 주기를 넣으면 달력에 복용 예정일만 표시됩니다.</p>
 
       <div class="sheet-btns">
         <button id="setup-save" class="btn primary" type="button">저장하고 확인</button>
