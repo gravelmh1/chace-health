@@ -90,6 +90,22 @@ checks.push([
   (await page.textContent('#setup-msg')).includes('secret'),
 ]);
 
+// 3-1) 새 형식 publishable 키(sb_publishable_...)도 받아들인다.
+//      최근 Supabase 대시보드는 JWT 대신 이 형식을 준다.
+await page.fill('#setup-key', 'sb_publishable_TESTKEY123456');
+await page.click('#setup-save');
+await page.waitForTimeout(700);
+checks.push([
+  'sb_publishable_ 키 저장 허용',
+  await page.evaluate(() => localStorage.getItem('chace:anonKey') === 'sb_publishable_TESTKEY123456'),
+]);
+checks.push(['sb_publishable_ 키로 REST 호출함', sentKeys.includes('sb_publishable_TESTKEY123456')]);
+await page.waitForTimeout(300);
+checks.push([
+  'sb_publishable_ 키로 데이터 표시',
+  (await page.textContent('#renpho-weight')).trim() === '78.3',
+]);
+
 // 4) 정상 anon 키는 저장되고 데이터가 바로 뜬다
 const anonKey = `x.${b64url({ role: 'anon' })}.y`;
 await page.fill('#setup-key', anonKey);
