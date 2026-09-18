@@ -76,12 +76,22 @@ npm run dev      # http://127.0.0.1:5173
 
 `health_calendar_events` 기본값: `category = '운동'`, `source = 'google_calendar'`
 
+## 처음 한 번: 읽기 통로 만들기
+
+건강 테이블들은 RLS 가 켜져 있어 anon 키로는 직접 읽을 수 없습니다 (맞는 설정입니다).
+`supabase/chace_health_pull.sql` 을 Supabase SQL Editor 에 붙여넣고 실행하면
+앱 전용 읽기 함수가 생깁니다.
+
+기존 테이블·정책·함수는 건드리지 않고, 쓰기도 하지 않습니다.
+해당 `profile_id` 한 사람의 최근 데이터만 돌려줍니다.
+
 ## 읽기 경로 — RPC 우선, 테이블 폴백
 
 `health_external_metrics` 에 RLS 가 걸려 있으면 anon 키로는 직접 SELECT 가 막힙니다.
 원본 앱이 쓰던 `health_sync_pull()` 은 그 제약을 넘어 정해진 데이터만 돌려주는 통로입니다.
 
-1. **`rpc/health_sync_pull()`** 을 먼저 호출합니다. 응답에서 metric 행과 캘린더 행을
+1. **`rpc/chace_health_pull()` → `rpc/health_sync_pull()`** 순서로 호출합니다.
+   (`js/config.js` 의 `SYNC_PULL_FNS`) 응답에서 metric 행과 캘린더 행을
    꺼내 클라이언트에서 추립니다. 반환 키 이름이 확정되지 않아
    `metrics` / `calendar_events` 등 여러 모양을 받아들입니다 (`js/select.js`).
 2. 함수가 없거나 빈 응답이면 **테이블을 직접 조회**합니다.

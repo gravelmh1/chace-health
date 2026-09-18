@@ -43,7 +43,12 @@ let tableCalls = 0;
 await ctx.route('**/rest/v1/**', (route) => {
   const url = new URL(route.request().url());
 
+  // 새 이름만 응답하고, 옛 이름은 404 — 후보 순회가 동작하는지 함께 본다
   if (url.pathname.includes('/rpc/health_sync_pull')) {
+    return route.fulfill({ status: 404, contentType: 'application/json',
+      body: JSON.stringify({ code: 'PGRST202', message: 'function not found' }) });
+  }
+  if (url.pathname.includes('/rpc/chace_health_pull')) {
     rpcCalls++;
     return route.fulfill({
       status: 200,

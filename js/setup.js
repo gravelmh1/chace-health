@@ -9,9 +9,9 @@ import { getAnonKey, setAnonKey, inspectKey, getProfileId, setProfileId } from '
 import { getDutaSchedule, setDutaSchedule } from './tracker.js';
 import {
   METRICS_TABLE, METRICS_COL, CALENDAR_TABLE, CALENDAR_COL,
-  DAYS_TABLE, DAYS_COL, EXERCISES, MEDICATIONS,
+  DAYS_TABLE, DAYS_COL, EXERCISES, MEDICATIONS, SYNC_PULL_FNS,
 } from './config.js';
-import { SYNC_PULL_FN } from './health-queries.js';
+
 import { unpackSyncPull } from './select.js';
 
 const $ = (id) => document.getElementById(id);
@@ -78,20 +78,20 @@ async function diagnoseLocalDate() {
  * 그래서 테이블 실패만 보여주면 오해를 부른다.
  */
 async function diagnoseRpc() {
-  try {
-    const raw = await callRpc(SYNC_PULL_FN);
-    const { metrics, events, days } = unpackSyncPull(raw);
-    const ok = metrics.length > 0;
-    return row(
-      `${SYNC_PULL_FN}()`,
-      ok,
-      `측정 ${metrics.length}행 · 일정 ${events.length}행 · 기록 ${days.length}행` +
-      (ok ? ' — 이 통로로 읽습니다' : ' — 응답은 왔지만 측정 데이터가 비어 있습니다'),
-    );
-  } catch (e) {
-    return row(`${SYNC_PULL_FN}()`, false,
-      `${e.message}${e.missingFunction ? ' (함수가 없습니다)' : ''}`);
+  const rows = [];
+  for (const fn of SYNC_PULL_FNS) {
+    try {
+      const { metrics, events, days } = unpackSyncPull(await callRpc(fn));
+      const ok = metrics.length > 0 || days.length > 0;
+      rows.push(row(`${fn}()`, ok,
+        `측정 ${metrics.length}행 · 일정 ${events.length}행 · 기록 ${days.length}행` +
+        (ok ? ' — 이 통로로 읽습니다' : ' — 응답은 왔지만 비어 있습니다')));
+    } catch (e) {
+      rows.push(row(`${fn}()`, false,
+        `${e.message}${e.missingFunction ? ' (함수가 없습니다)' : ''}`));
+    }
   }
+  return rows.join('');
 }
 
 /** workouts / meds JSONB 의 실제 키 이름을 보여준다 (코드가 찾는 이름과 대조) */

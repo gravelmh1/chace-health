@@ -107,6 +107,17 @@ export const DUTA_DEFAULT_INTERVAL_DAYS = 2;
 // ---------------------------------------------------------------------------
 export const DAYS_TABLE = 'health_cloud_days';
 
+/**
+ * 읽기 통로로 시도할 RPC 이름들 (앞에서부터 순서대로).
+ *
+ * 테이블에 RLS 가 걸려 있어 anon 으로는 직접 SELECT 가 막힌다.
+ * SECURITY DEFINER 함수만이 정해진 데이터를 돌려주는 통로다.
+ *
+ * health_sync_pull 은 원본 앱이 쓰던 이름이고, chace_health_pull 은
+ * 이 앱을 위해 새로 만드는 이름이다. 기존 함수를 바꾸지 않기 위해 이름을 나눴다.
+ */
+export const SYNC_PULL_FNS = ['chace_health_pull', 'health_sync_pull'];
+
 export const DAYS_COL = {
   profileId: 'profile_id',
   day: 'day',

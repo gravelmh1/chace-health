@@ -21,7 +21,7 @@
 import { selectOne, selectRows, callRpc } from './supabase.js';
 import { unpackSyncPull, latestMetric, dailyTotal } from './select.js';
 import {
-  METRICS_TABLE, METRICS_COL as C, SOURCE,
+  METRICS_TABLE, METRICS_COL as C, SOURCE, SYNC_PULL_FNS,
 } from './config.js';
 import { getProfileId } from './settings.js';
 import { laToday } from './time.js';
@@ -198,9 +198,10 @@ export async function fetchDistanceToday() {
 // 어느 쪽이든 고르는 규칙(최신 1건, 일일 집계 우선)은 동일하다.
 // ---------------------------------------------------------------------------
 
-export const SYNC_PULL_FN = 'health_sync_pull';
+// 어떤 이름이 통했는지 기억해 두고 다음부터는 그것만 부른다.
+export let SYNC_PULL_FN = SYNC_PULL_FNS[0];
 
-let rpcAvailable = null; // null=아직 모름, false=없음(폴백 고정)
+let rpcAvailable = null; // null=아직 모름, false=전부 실패(폴백 고정)
 
 // 한 번의 새로고침에서 대시보드와 달력이 같은 응답을 쓰도록 아주 짧게만 캐시한다.
 // (캐시 때문에 옛날 값이 남는 일이 없도록 수명을 3초로 묶는다)
@@ -212,16 +213,21 @@ export async function pullSyncData() {
   if (rpcAvailable === false) return null;
   if (lastPull.data && Date.now() - lastPull.at < PULL_TTL_MS) return lastPull.data;
 
-  try {
-    const data = unpackSyncPull(await callRpc(SYNC_PULL_FN));
-    rpcAvailable = true;
-    lastPull = { at: Date.now(), data };
-    return data;
-  } catch {
-    rpcAvailable = false;
-    lastPull = { at: 0, data: null };
-    return null;
+  for (const fn of SYNC_PULL_FNS) {
+    try {
+      const data = unpackSyncPull(await callRpc(fn));
+      if (!data.metrics.length && !data.days.length && !data.events.length) continue;
+      SYNC_PULL_FN = fn;
+      rpcAvailable = true;
+      lastPull = { at: Date.now(), data };
+      return data;
+    } catch {
+      // 이 이름은 없거나 막혀 있다 — 다음 후보로.
+    }
   }
+  rpcAvailable = false;
+  lastPull = { at: 0, data: null };
+  return null;
 }
 
 /** RPC 로 받은 행에서 대시보드를 구성한다. */

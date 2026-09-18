@@ -134,7 +134,7 @@ checks.push(['저장한 키로 REST 호출함', sentKeys.includes(anonKey)]);
 const diag = await page.textContent('#setup-diag');
 checks.push([`스키마 진단 = 컬럼 일치 확인`, diag.includes('일치')]);
 checks.push(['스키마 진단 = local_date 확인', diag.includes('local_date')]);
-checks.push(['스키마 진단 = RPC 경로도 검사', diag.includes('health_sync_pull()')]);
+checks.push(['스키마 진단 = RPC 경로도 검사', diag.includes('chace_health_pull()') && diag.includes('health_sync_pull()')]);
 checks.push(['스키마 진단 = 기록 테이블도 검사', diag.includes('health_cloud_days')]);
 
 await page.click('#setup-close');
