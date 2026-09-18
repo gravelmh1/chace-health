@@ -145,3 +145,44 @@ export function shortLabel(dateStr) {
   const [, m, d] = dateStr.split('-');
   return `${Number(m)}/${Number(d)}`;
 }
+
+/**
+ * metadata 에 들어 있는 "현지 벽시계" 문자열을 그대로 표시한다.
+ * ('2026-09-17T12:30:00' 같은 값 — 이미 LA 기준이라 시간대 변환을 하면 안 된다)
+ *
+ * recorded_at 을 변환해 쓰면 일일 집계 행에서 어긋난다.
+ * 그 행의 recorded_at 은 동기화 시각이 아니라 집계 기준 시각이기 때문이다.
+ */
+export function formatLocalStamp(value) {
+  const m = String(value ?? '').match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{1,2}):(\d{2})/);
+  if (!m) return null;
+  const [, , mo, d, h, mi] = m;
+  const hour = Number(h) % 24;
+  const period = hour < 12 ? '오전' : '오후';
+  const h12 = hour % 12 === 0 ? 12 : hour % 12;
+  return `${Number(mo)}. ${Number(d)}. ${period} ${h12}:${mi}`;
+}
+
+/**
+ * 한 측정값의 표시 시각.
+ * metadata 의 현지 시각을 우선하고, 없을 때만 recorded_at 을 LA 로 변환한다.
+ */
+export function metricTime(entry) {
+  const md = entry?.metadata;
+  if (md) {
+    const fromLocal =
+      formatLocalStamp(md.local_timestamp)
+      ?? formatLocalStamp(md.sample_end_local)
+      ?? (md.local_date && md.local_time
+            ? formatLocalStamp(`${md.local_date}T${md.local_time}`)
+            : null);
+    if (fromLocal) return fromLocal;
+  }
+  return formatSyncTime(entry?.recordedAt);
+}
+
+/** 동기화 시각. synced_local_time 이 있으면 그것이 진짜 동기화 시각이다. */
+export function syncTime(entry) {
+  const t = formatLocalStamp(entry?.metadata?.synced_local_time);
+  return t ?? metricTime(entry);
+}

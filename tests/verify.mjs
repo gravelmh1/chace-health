@@ -119,7 +119,10 @@ const checks = [
   ['걸음수 = 6,482 (일일 집계 행 선택)', got.steps === '6,482'],
   ['걸음수가 더 최신 legacy snapshot(6,100)을 집지 않음', got.steps !== '6,100'],
   ['거리 = 1.1 mi (1770.3 m 환산)', got.stepsNote.startsWith('1.1 mi')],
-  ['Apple 동기화 시각 표시',        /^\d+\. \d+\. (오전|오후) /.test(got.appleSynced)],
+  // recorded_at(LA 12:20) 이 아니라 metadata.synced_local_time(12:45) 을 써야 한다.
+  // 일일 집계 행의 recorded_at 은 동기화 시각이 아니다.
+  ['Apple 동기화 = 12:45 (synced_local_time)', got.appleSynced === '9. 17. 오후 12:45 동기화'],
+  ['Apple 동기화가 recorded_at 변환값(12:20)이 아님', !got.appleSynced.includes('12:20')],
   ['상단 날짜 = 9월 17일 (목)',      got.today === '9월 17일 (목)'],
   ['걸음수가 "기록 없음" 이 아님',   !got.stepsNote.includes('기록 없음')],
   ['걸음수가 0 이 아님',            got.steps !== '0'],

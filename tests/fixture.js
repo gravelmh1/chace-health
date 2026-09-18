@@ -24,11 +24,14 @@ const renphoMeta = (local_date, local_time) => ({
   source: 'ChatGPT Health sync',
 });
 
-const appleDaily = (local_date, complete_day) => ({
+// synced_local_time 을 recorded_at 과 일부러 어긋나게 둔다.
+// recorded_at(19:20Z = LA 12:20)을 변환해 쓰는 코드는 12:20 을 찍고,
+// synced_local_time 을 쓰는 코드는 12:45 를 찍는다 — 어느 쪽인지 테스트가 가른다.
+const appleDaily = (local_date, complete_day, synced = '12:45:00') => ({
   local_date,
   aggregation: 'daily_sum',
   complete_day,
-  synced_local_time: `${local_date}T12:30:00`,
+  synced_local_time: `${local_date}T${synced}`,
   timezone: 'America/Los_Angeles',
   source: 'ChatGPT Health sync',
 });

@@ -12,7 +12,7 @@ import { fetchDashboard } from './health-queries.js';
 import { isConfigured } from './supabase.js';
 import { openSetup, initSetup } from './setup.js';
 import {
-  formatSyncTime, laToday, shiftDate, shortLabel,
+  formatSyncTime, metricTime, syncTime, laToday, shiftDate, shortLabel,
 } from './time.js';
 import { openRenpho } from './open-renpho.js';
 import { buildWeekGrid, gridRange, fetchCalendarEvents } from './calendar.js';
@@ -60,18 +60,28 @@ function renderRenpho(r) {
   $('renpho-fat').textContent = fixed(r?.bodyFatPercentage?.value, 1);
   $('renpho-bmi').textContent = fixed(r?.bodyMassIndex?.value, 1);
   $('renpho-lean').textContent = trimNum(r?.leanBodyMass?.value, 2);
-  $('renpho-synced').textContent = r?.syncedAt
-    ? `${formatSyncTime(r.syncedAt)} 동기화`
+  // 표시 시각은 metadata 의 현지 시각을 우선한다. recorded_at 을 변환해 쓰면
+  // 일일 집계처럼 기준 시각이 따로 있는 행에서 어긋난다.
+  const latest = ['bodyMass', 'bodyFatPercentage', 'bodyMassIndex', 'leanBodyMass']
+    .map((k) => r?.[k])
+    .filter((m) => m?.recordedAt)
+    .sort((a, b) => Date.parse(b.recordedAt) - Date.parse(a.recordedAt))[0];
+
+  $('renpho-synced').textContent = latest
+    ? `${metricTime(latest)} 동기화`
     : '측정 기록 없음';
 }
 
 function renderApple(d) {
-  // 동기화 시각 = Apple 계열에서 가장 최근 측정 시각
-  const times = [d.steps?.recordedAt, d.heartRate?.recordedAt, d.distance?.recordedAt]
-    .filter(Boolean)
-    .sort();
-  const synced = times[times.length - 1] ?? null;
-  $('apple-synced').textContent = synced ? `${formatSyncTime(synced)} 동기화` : '동기화 기록 없음';
+  // 동기화 시각: metadata.synced_local_time 이 실제 동기화 시각이다.
+  // 일일 집계 행의 recorded_at 은 집계 기준 시각이라 동기화 시각이 아니다.
+  const appleEntries = [d.steps, d.heartRate, d.distance]
+    .filter((m) => m?.recordedAt)
+    .sort((a, b) => Date.parse(b.recordedAt) - Date.parse(a.recordedAt));
+  const withSync = appleEntries.find((m) => m?.metadata?.synced_local_time) ?? appleEntries[0];
+  $('apple-synced').textContent = withSync
+    ? `${syncTime(withSync)} 동기화`
+    : '동기화 기록 없음';
 
   $('steps-value').textContent = int(d.steps?.value);
 
@@ -92,7 +102,7 @@ function renderApple(d) {
 
   $('hr-value').textContent = int(d.heartRate?.value);
   $('hr-time').textContent = d.heartRate?.recordedAt
-    ? `${formatSyncTime(d.heartRate.recordedAt)} 측정`
+    ? `${metricTime(d.heartRate)} 측정`
     : '기록 없음';
 }
 
