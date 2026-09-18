@@ -281,3 +281,8 @@ h1 {
   h1 { font-size: 27px; }
   .renpho .big { font-size: 18px; }
 }
+
+.note code {
+  font: 11px ui-monospace, SFMono-Regular, Menlo, monospace;
+  background: var(--fill); padding: 1px 4px; border-radius: 4px;
+}
