@@ -264,17 +264,38 @@ await page.route('**/*', (route) => {
   }
   return route.continue();
 });
-await page.click('#renpho-card');
-// 스킴 시도(1.2s) 후 폴백까지 기다린다
-await page.waitForTimeout(2200);
+// 폴백 이동이 문서를 떠나게 하므로, 카드마다 새로 로드한 뒤 누른다.
+async function clickCard(id) {
+  await page.goto(`${base}/index.html`);
+  await page.waitForSelector(`#${id}`, { timeout: 15000 });
+  await page.waitForTimeout(400);
+  topNav = null; frameNav = [];
+  await page.click(`#${id}`);
 
-let navOk = false;
-try { navOk = !!topNav && !!new URL(topNav) && topNav.startsWith('https://'); } catch { navOk = false; }
-checks.push([`RENPHO 클릭 → 최상위는 https 로만 (${topNav ?? '이동 없음'})`, navOk]);
-checks.push([
-  '최상위 문서가 커스텀 스킴으로 이동하지 않음 (Safari 오류 방지)',
-  !topNav || !/^[a-z][a-z0-9+.-]*:/i.test(topNav) || topNav.startsWith('http'),
-]);
+  // 커스텀 스킴 이동은 네트워크 스택을 거치지 않아 route 에 잡히지 않는다.
+  // 대신 시도용 iframe 이 실제로 만들어졌는지 DOM 에서 확인한다 (1.2초 동안 존재).
+  await page.waitForTimeout(300);
+  const schemeSrc = await page.evaluate(() =>
+    [...document.querySelectorAll('iframe')].map((f) => f.getAttribute('src')));
+
+  await page.waitForTimeout(1900); // 폴백까지
+  return { top: topNav, frames: [...frameNav], schemeSrc };
+}
+
+for (const [id, label] of [['renpho-card', 'RENPHO'], ['apple-card', 'Apple 건강']]) {
+  const nav = await clickCard(id);
+  let navOk = false;
+  try { navOk = !!nav.top && !!new URL(nav.top) && nav.top.startsWith('https://'); } catch { navOk = false; }
+  checks.push([`${label} 클릭 → 최상위는 https 로만 (${nav.top ?? '이동 없음'})`, navOk]);
+  checks.push([
+    `${label}: 최상위가 커스텀 스킴으로 가지 않음 (Safari 오류 방지)`,
+    !nav.top || nav.top.startsWith('http'),
+  ]);
+  checks.push([
+    `${label}: 앱 스킴을 iframe 으로 시도 (${nav.schemeSrc.join(',') || '없음'})`,
+    nav.schemeSrc.some((u) => u && !u.startsWith('http')),
+  ]);
+}
 
 console.log('\n=== 앱이 보낸 쿼리 ===');
 for (const r of requests) console.log('  ' + decodeURIComponent(r));

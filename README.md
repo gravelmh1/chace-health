@@ -152,11 +152,12 @@ Supabase REST 응답을 픽스처로 가로채되, 앱이 만든 쿼리 문자�
 
 브라우저 시간대는 일부러 `Asia/Seoul` 로 두고 LA 기준 표시가 흔들리지 않는지 확인합니다.
 
-## RENPHO 카드 클릭
+## 카드 클릭 → 앱 열기
 
-의도는 App Store 가 아니라 RENPHO 앱을 직접 여는 것입니다.
+- **Apple 건강** 카드 → `x-apple-health://` (폴백 `apple.com/ios/health`)
+- **RENPHO** 카드 → `renpho://` (폴백 App Store 검색)
 
-`renpho://` 스킴은 실기기에서 검증되지 않았지만, **숨김 iframe 으로 던지기 때문에
+둘 다 앱을 직접 여는 것이 목적입니다. 스킴은 실기기에서 검증되지 않았지만, **숨김 iframe 으로 던지기 때문에
 스킴이 틀려도 Safari 오류 페이지가 뜨지 않습니다.** 최상위 문서를 커스텀 스킴으로
 이동시키면 "Safari cannot open the page because the address is invalid" 가 뜨는데,
 그 경로를 쓰지 않는 것이 핵심입니다.
@@ -164,7 +165,11 @@ Supabase REST 응답을 픽스처로 가로채되, 앱이 만든 쿼리 문자�
 1.2초 안에 앱으로 전환되지 않으면 항상 유효한 https 주소로 폴백합니다.
 테스트가 **최상위 문서는 https 로만 이동한다**는 것을 고정하고 있습니다.
 
-다른 스킴으로 바꾸려면 `js/config.js` 의 `RENPHO_APP_SCHEME` 만 고치면 됩니다.
+스킴을 바꾸려면 `js/config.js` 의 `RENPHO_APP_SCHEME` / `APPLE_HEALTH_SCHEME` 만 고치면 됩니다.
+
+> **Apple 건강 데이터를 앱이 직접 읽지는 못합니다.** HealthKit 은 네이티브 iOS 앱에만
+> 열려 있어서, 웹앱은 권한 자체가 없습니다. 화면의 값은 다른 경로(`ChatGPT Health sync`)로
+> Supabase 에 들어온 것을 읽어 보여주는 것입니다.
 
 ## 배포
 

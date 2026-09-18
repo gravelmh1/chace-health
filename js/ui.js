@@ -14,7 +14,7 @@ import { openSetup, initSetup } from './setup.js';
 import {
   formatSyncTime, metricTime, syncTime, laToday, shiftDate, shortLabel,
 } from './time.js';
-import { openRenpho } from './open-renpho.js';
+import { openRenpho, openAppleHealth } from './open-renpho.js';
 import { buildWeekGrid, gridRange, fetchCalendarEvents } from './calendar.js';
 import { renderChart, renderLegend } from './chart.js';
 import {
@@ -362,6 +362,7 @@ export function init() {
   $('refresh-btn').addEventListener('click', () => { refresh(); renderAllLocal(); });
   $('setup-btn').addEventListener('click', openSetup);
   $('renpho-card').addEventListener('click', openRenpho);
+  $('apple-card').addEventListener('click', openAppleHealth);
   $('cal-today').addEventListener('click', () => {
     selectedDate = laToday();
     anchorDate = laToday();
