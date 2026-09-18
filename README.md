@@ -154,8 +154,10 @@ Supabase REST 응답을 픽스처로 가로채되, 앱이 만든 쿼리 문자�
 
 ## 카드 클릭 → 앱 열기
 
-- **Apple 건강** 카드 → `x-apple-health://` (폴백 `apple.com/ios/health`)
-- **RENPHO** 카드 → `renpho://` (폴백 App Store 검색)
+- **Apple 건강** 카드 → `x-apple-health://` — **폴백 없음**.
+  건강 앱은 아이폰에 항상 있으므로 설치 페이지가 필요 없고, 안 열렸다고
+  애플 홈페이지 같은 곳으로 보내면 더 나쁩니다. 열리지 않으면 아무 일도 없습니다.
+- **RENPHO** 카드 → `renpho://` — 앱이 없을 수 있으므로 App Store 검색으로 폴백합니다.
 
 둘 다 앱을 직접 여는 것이 목적입니다. 스킴은 실기기에서 검증되지 않았지만, **숨김 iframe 으로 던지기 때문에
 스킴이 틀려도 Safari 오류 페이지가 뜨지 않습니다.** 최상위 문서를 커스텀 스킴으로
@@ -167,9 +169,10 @@ Supabase REST 응답을 픽스처로 가로채되, 앱이 만든 쿼리 문자�
 
 스킴을 바꾸려면 `js/config.js` 의 `RENPHO_APP_SCHEME` / `APPLE_HEALTH_SCHEME` 만 고치면 됩니다.
 
-> **Apple 건강 데이터를 앱이 직접 읽지는 못합니다.** HealthKit 은 네이티브 iOS 앱에만
-> 열려 있어서, 웹앱은 권한 자체가 없습니다. 화면의 값은 다른 경로(`ChatGPT Health sync`)로
-> Supabase 에 들어온 것을 읽어 보여주는 것입니다.
+> 화면의 건강 수치는 Supabase 에서 읽습니다. 이 경로는 정상 동작합니다.
+> 앱이 HealthKit 에서 **직접** 가져오지 못할 뿐입니다 — HealthKit 은 네이티브 iOS 앱
+> 전용이라 웹앱에는 애초에 열려 있지 않습니다. Supabase 에는 `ChatGPT Health sync` 가
+> 넣어 줍니다.
 
 ## 배포
 

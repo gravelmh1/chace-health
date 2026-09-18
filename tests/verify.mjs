@@ -282,11 +282,22 @@ async function clickCard(id) {
   return { top: topNav, frames: [...frameNav], schemeSrc };
 }
 
-for (const [id, label] of [['renpho-card', 'RENPHO'], ['apple-card', 'Apple 건강']]) {
+// RENPHO: 앱이 없을 수 있으므로 App Store 로 폴백한다.
+// Apple 건강: 아이폰에 항상 있으므로 폴백하지 않는다 — 엉뚱한 페이지로 보내지 않는다.
+for (const [id, label, expectFallback] of [
+  ['renpho-card', 'RENPHO', true],
+  ['apple-card', 'Apple 건강', false],
+]) {
   const nav = await clickCard(id);
-  let navOk = false;
-  try { navOk = !!nav.top && !!new URL(nav.top) && nav.top.startsWith('https://'); } catch { navOk = false; }
-  checks.push([`${label} 클릭 → 최상위는 https 로만 (${nav.top ?? '이동 없음'})`, navOk]);
+
+  if (expectFallback) {
+    let navOk = false;
+    try { navOk = !!nav.top && !!new URL(nav.top) && nav.top.startsWith('https://'); } catch { navOk = false; }
+    checks.push([`${label} 클릭 → https 폴백 (${nav.top ?? '이동 없음'})`, navOk]);
+  } else {
+    checks.push([`${label} 클릭 → 폴백 이동 없음 (${nav.top ?? '이동 없음'})`, nav.top === null]);
+  }
+
   checks.push([
     `${label}: 최상위가 커스텀 스킴으로 가지 않음 (Safari 오류 방지)`,
     !nav.top || nav.top.startsWith('http'),

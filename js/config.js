@@ -83,9 +83,13 @@ export const RENPHO_FALLBACK_URL = 'https://apps.apple.com/us/search?term=RENPHO
 
 // Apple 건강 카드 클릭 → 건강 앱 열기.
 // x-apple-health:// 는 공식 문서에 없지만 아이폰에서 널리 쓰이는 스킴이다.
-// RENPHO 와 같은 방식(숨김 iframe + 폴백)이라 틀려도 오류창이 뜨지 않는다.
+// 숨김 iframe 으로 던지므로 틀려도 Safari 오류창이 뜨지 않는다.
 export const APPLE_HEALTH_SCHEME = 'x-apple-health://';
-export const APPLE_HEALTH_FALLBACK_URL = 'https://www.apple.com/ios/health/';
+
+// 폴백 없음(null). 건강 앱은 아이폰에 항상 설치돼 있으므로 설치 페이지가 필요 없고,
+// 안 열렸다고 애플 홈페이지 같은 엉뚱한 곳으로 보내면 더 나쁘다.
+// 열리지 않으면 아무 일도 일어나지 않는 편이 낫다.
+export const APPLE_HEALTH_FALLBACK_URL = null;
 
 // ---------------------------------------------------------------------------
 // 약 / 운동 기록
