@@ -90,6 +90,22 @@ checks.push([
   (await page.textContent('#setup-msg')).includes('secret'),
 ]);
 
+// 3-0) 대시보드 주소를 붙여넣은 경우 — 가장 흔한 실수
+await page.fill('#setup-key', 'https://supabase.com/dashboard/project/whawmtbksquervliksqv/settings/api-keys');
+await page.click('#setup-save');
+await page.waitForTimeout(300);
+checks.push([
+  'URL 붙여넣기 거부 + 원인 설명',
+  (await page.textContent('#setup-msg')).includes('주소'),
+]);
+checks.push(['URL 은 저장되지 않음', await page.evaluate(() => !localStorage.getItem('chace:anonKey'))]);
+
+// 3-0b) 잘린 키
+await page.fill('#setup-key', 'eyJhbGci');
+await page.click('#setup-save');
+await page.waitForTimeout(300);
+checks.push(['너무 짧은 키 거부', (await page.textContent('#setup-msg')).includes('짧습니다')]);
+
 // 3-1) 새 형식 publishable 키(sb_publishable_...)도 받아들인다.
 //      최근 Supabase 대시보드는 JWT 대신 이 형식을 준다.
 await page.fill('#setup-key', 'sb_publishable_TESTKEY123456');

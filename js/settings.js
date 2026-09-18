@@ -65,6 +65,21 @@ export function inspectKey(value) {
   const key = (value || '').trim();
   if (!key) return { ok: false, reason: '키가 비어 있습니다.' };
 
+  // 가장 흔한 실수: 대시보드 주소를 복사해서 붙여넣는 경우.
+  // 그냥 통과시키면 "인증 실패"만 뜨고 원인을 알기 어렵다.
+  if (/^https?:\/\//i.test(key)) {
+    return {
+      ok: false,
+      reason: '주소(URL)를 붙여넣으셨습니다. 그 페이지를 연 다음, 페이지 안의 키 값을 복사해야 합니다.',
+    };
+  }
+  if (/[\s/?#]/.test(key)) {
+    return { ok: false, reason: '키에 공백이나 / ? # 가 들어 있습니다. 키 값만 복사했는지 확인하세요.' };
+  }
+  if (key.length < 20) {
+    return { ok: false, reason: '키가 너무 짧습니다. 값이 잘려서 복사된 것 같습니다.' };
+  }
+
   const parts = key.split('.');
   if (parts.length !== 3) {
     // 새 형식(sb_publishable_...)도 허용한다. JWT 가 아니라고 무조건 거절하지 않는다.
