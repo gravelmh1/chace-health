@@ -68,12 +68,29 @@ function readMeds(raw) {
   return out;
 }
 
+/**
+ * events JSONB → 제목 배열.
+ * 저장 형태가 확정되지 않아 문자열 배열과 객체 배열을 모두 받아들인다.
+ */
+function readEvents(raw) {
+  const list = Array.isArray(raw) ? raw
+    : (raw && typeof raw === 'object' ? Object.values(raw) : []);
+  return list
+    .map((e) => (typeof e === 'string' ? e : e?.title ?? e?.name ?? e?.label ?? ''))
+    .map((t) => String(t).trim())
+    .filter(Boolean);
+}
+
 function ingestDays(rows) {
   const days = {};
   for (const row of rows ?? []) {
     const day = String(row?.[D.day] ?? '').slice(0, 10);
     if (!day) continue;
-    days[day] = { meds: readMeds(row[D.meds]), ex: readWorkouts(row[D.workouts]) };
+    days[day] = {
+      meds: readMeds(row[D.meds]),
+      ex: readWorkouts(row[D.workouts]),
+      events: readEvents(row[D.events]),
+    };
   }
   return days;
 }
@@ -110,9 +127,14 @@ export function loadLog() {
   const local = readJson(logKey(), {});
   const merged = {};
   for (const day of new Set([...Object.keys(cloudDays), ...Object.keys(local)])) {
-    const c = cloudDays[day] ?? { meds: {}, ex: {} };
-    const l = local[day] ?? { meds: {}, ex: {} };
-    merged[day] = { meds: { ...c.meds, ...l.meds }, ex: { ...c.ex, ...l.ex } };
+    const c = cloudDays[day] ?? { meds: {}, ex: {}, events: [] };
+    const l = local[day] ?? { meds: {}, ex: {}, events: [] };
+    merged[day] = {
+      meds: { ...c.meds, ...l.meds },
+      ex: { ...c.ex, ...l.ex },
+      // 클라우드 일정 + 이 앱에서 넣은 일정. 같은 제목은 한 번만.
+      events: [...new Set([...(c.events ?? []), ...(l.events ?? [])])],
+    };
   }
   return merged;
 }
@@ -123,12 +145,37 @@ function loadLocal() {
 }
 
 export function dayEntry(log, dateStr) {
-  return log[dateStr] || { meds: {}, ex: {} };
+  return log[dateStr] || { meds: {}, ex: {}, events: [] };
+}
+
+/** 그 날의 운동 일정 (이 앱에서 입력한 것만) */
+export function localEvents(dateStr) {
+  return loadLocal()[dateStr]?.events ?? [];
+}
+
+/** 운동 일정 추가. 클라우드에는 쓰지 않고 브라우저에만 쌓는다. */
+export function addEvent(dateStr, title) {
+  const t = String(title || '').trim();
+  if (!t) return;
+  const log = loadLocal();
+  const day = { meds: {}, ex: {}, events: [], ...log[dateStr] };
+  day.events = [...new Set([...(day.events ?? []), t])];
+  log[dateStr] = day;
+  writeJson(logKey(), log);
+}
+
+export function removeEvent(dateStr, title) {
+  const log = loadLocal();
+  const day = log[dateStr];
+  if (!day?.events) return;
+  day.events = day.events.filter((e) => e !== title);
+  log[dateStr] = day;
+  writeJson(logKey(), log);
 }
 
 export function setMed(dateStr, medId, taken) {
   const log = loadLocal();
-  const day = { meds: {}, ex: {}, ...log[dateStr] };
+  const day = { meds: {}, ex: {}, events: [], ...log[dateStr] };
   day.meds = { ...day.meds };
   day.meds[medId] = !!taken; // false 도 남긴다 (클라우드의 true 를 덮기 위해)
   log[dateStr] = day;
@@ -138,7 +185,7 @@ export function setMed(dateStr, medId, taken) {
 
 export function setExercise(dateStr, exId, count) {
   const log = loadLocal();
-  const day = { meds: {}, ex: {}, ...log[dateStr] };
+  const day = { meds: {}, ex: {}, events: [], ...log[dateStr] };
   day.ex = { ...day.ex };
   // 0 도 값으로 남긴다. 지워버리면 클라우드 값이 다시 올라와 '0 으로 내림'이 안 된다.
   day.ex[exId] = Math.max(0, Math.floor(Number(count) || 0));

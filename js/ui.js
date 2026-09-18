@@ -19,11 +19,18 @@ import { buildWeekGrid, gridRange, fetchCalendarEvents } from './calendar.js';
 import { renderChart, renderLegend } from './chart.js';
 import {
   loadLog, dayEntry, setMed, setExercise, exerciseTotal,
-  medsDueOn, isDutaDay, loadCloudDays, MEDICATIONS, EXERCISES,
+  medsDueOn, isDutaDay, loadCloudDays, localEvents, addEvent, removeEvent,
+  MEDICATIONS, EXERCISES,
 } from './tracker.js';
 import { CHART_DAYS } from './config.js';
 
 const $ = (id) => document.getElementById(id);
+
+/** 사용자가 입력한 일정 이름을 그대로 마크업에 넣지 않는다 */
+function escapeHtml(t) {
+  return String(t).replace(/[&<>"']/g, (c) =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
 const DASH = '—';
 const METERS_PER_MILE = 1609.344;
 const STEP = 10; // +/- 버튼 증감 단위
@@ -176,21 +183,24 @@ async function renderCalendar() {
     if (cell.dateStr === selectedDate) el.classList.add('sel');
 
     const total = exerciseTotal(log, cell.dateStr);
-    const taken = dayEntry(log, cell.dateStr).meds;
     const events = monthEvents[cell.dateStr] ?? [];
 
-    let html = `<span class="d">${cell.day}</span>`;
-    html += '<i class="tag vd">비D</i>';
-    if (isDutaDay(cell.dateStr)) html += '<i class="tag dt">두타</i>';
-    if (total) html += `<span class="cnt">${total}회</span>`;
-    if (events.length) html += `<span class="evt">${events[0].title}</span>`;
+    // 일정: 앱에서 넣은 것 + 클라우드 기록의 events + Google Calendar
+    const titles = [...new Set([
+      ...dayEntry(log, cell.dateStr).events,
+      ...events.map((e) => e.title),
+    ])];
 
-    const dots = [];
-    if (total) dots.push('<i class="dot ex"></i>');
-    if (events.length) dots.push('<i class="dot ev"></i>');
-    html += `<span class="dots">${dots.join('')}</span>`;
-
-    el.innerHTML = html;
+    // 칸마다 같은 자리에 같은 것이 오도록 슬롯을 고정한다.
+    // 내용이 없어도 자리를 비워 두어야 행끼리 줄이 맞는다.
+    el.innerHTML =
+      `<span class="d">${cell.day}</span>` +
+      '<span class="slot"><i class="tag vd">비D</i></span>' +
+      `<span class="slot">${isDutaDay(cell.dateStr) ? '<i class="tag dt">두타</i>' : ''}</span>` +
+      `<span class="slot cnt">${total ? `${total}회` : ''}</span>` +
+      `<span class="slot evt">${titles[0] ? escapeHtml(titles[0]) : ''}</span>` +
+      `<span class="slot dots">${total ? '<i class="dot ex"></i>' : ''}` +
+      `${titles.length ? '<i class="dot ev"></i>' : ''}</span>`;
     el.addEventListener('click', () => {
       selectedDate = cell.dateStr;
       renderCalendar();
@@ -202,12 +212,16 @@ async function renderCalendar() {
 
 // --- 기록하기 -----------------------------------------------------------------
 
-function renderEntry() {
-  const [, m, d] = selectedDate.split('-');
+function entryLabel(dateStr) {
+  const [, m, d] = dateStr.split('-');
   const wd = ['일', '월', '화', '수', '목', '금', '토'][
-    new Date(`${selectedDate}T00:00:00Z`).getUTCDay()
+    new Date(`${dateStr}T00:00:00Z`).getUTCDay()
   ];
-  $('entry-date').textContent = `${Number(m)}월 ${Number(d)}일 (${wd})`;
+  return `${Number(m)}월 ${Number(d)}일 (${wd})`;
+}
+
+function renderEntry() {
+  $('entry-date').textContent = entryLabel(selectedDate);
 
   const log = loadLog();
   const day = dayEntry(log, selectedDate);
@@ -260,6 +274,45 @@ function renderEntry() {
   }
 }
 
+// --- 운동 일정 입력 -----------------------------------------------------------
+
+function openEventSheet() {
+  $('evt-date').textContent = entryLabel(selectedDate);
+  $('evt-title').value = '';
+  $('evt-sheet').hidden = false;
+  renderEventList();
+  $('evt-title').focus();
+}
+
+function renderEventList() {
+  const list = $('evt-list');
+  const mine = localEvents(selectedDate);
+  const cloud = dayEntry(loadLog(), selectedDate).events.filter((t) => !mine.includes(t));
+
+  list.innerHTML =
+    mine.map((t) => `<li><span>${escapeHtml(t)}</span>` +
+      `<button type="button" class="evt-del" data-title="${escapeHtml(t)}">삭제</button></li>`).join('') +
+    cloud.map((t) => `<li class="ro"><span>${escapeHtml(t)}</span><em>Supabase</em></li>`).join('') ||
+    '<li class="ro"><span>등록된 일정이 없습니다</span></li>';
+
+  for (const btn of list.querySelectorAll('.evt-del')) {
+    btn.addEventListener('click', () => {
+      removeEvent(selectedDate, btn.dataset.title);
+      renderEventList();
+      renderCalendar();
+    });
+  }
+}
+
+function commitEvent() {
+  const input = $('evt-title');
+  if (!input.value.trim()) return;
+  addEvent(selectedDate, input.value);
+  input.value = '';
+  renderEventList();
+  renderCalendar();
+}
+
 // --- 최근 2주 운동 ------------------------------------------------------------
 
 function renderChartCard() {
@@ -305,18 +358,19 @@ export function init() {
     renderCalendar();
     renderEntry();
   });
-  // + 버튼: 선택한 날짜의 모든 운동을 한 번에 올린다
-  $('entry-add').addEventListener('click', () => {
-    const log = loadLog();
-    const day = dayEntry(log, selectedDate);
-    for (const ex of EXERCISES) setExercise(selectedDate, ex.id, (day.ex[ex.id] ?? 0) + STEP);
-    renderEntry();
-    renderCalendar();
-    renderChartCard();
+  // + 버튼: 선택한 날짜에 운동 일정을 넣는다
+  $('entry-add').addEventListener('click', openEventSheet);
+  $('evt-close').addEventListener('click', () => { $('evt-sheet').hidden = true; });
+  $('evt-sheet').addEventListener('click', (e) => {
+    if (e.target.id === 'evt-sheet') $('evt-sheet').hidden = true;
+  });
+  $('evt-add').addEventListener('click', commitEvent);
+  $('evt-title').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') commitEvent();
   });
   initSetup(() => { refresh(); renderAllLocal(); });
 
-  const setupOpen = () => !$('setup').hidden;
+  const setupOpen = () => !$('setup').hidden || !$('evt-sheet').hidden;
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden && !setupOpen()) refresh();
   });

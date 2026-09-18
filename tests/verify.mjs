@@ -167,7 +167,8 @@ checks.push([
 ]);
 const lgVals = await page.$$eval('.lg-item .lg-val', (els) => els.map((e) => e.textContent));
 checks.push([`차트 범례 합계 = 620·0·180·120 · health_cloud_days 에서 읽음 (${lgVals.join(' ')})`, lgVals.join(',') === '620회,0회,180회,120회']);
-const calCounts = await page.$$eval('.cal-cell .cnt', (els) => els.map((e) => e.textContent));
+const calCounts = await page.$$eval('.cal-cell .cnt',
+  (els) => els.map((e) => e.textContent.trim()).filter(Boolean));
 checks.push([
   `달력 운동 횟수 = 클라우드 기록 (${calCounts.join(' ')})`,
   calCounts.join(',') === '210회,260회,60회,60회,110회,110회,110회',
@@ -179,6 +180,40 @@ checks.push([
 ]);
 const marks = await page.$$eval('.lg-mark', (els) => els.length);
 checks.push(['범례 도형 마커 4개 (색약 대비 보조부호)', marks === 4]);
+
+// 달력 칸 정렬 — 같은 주 안에서 횟수·태그가 같은 높이에 있어야 한다
+const rowGeom = await page.evaluate(() => {
+  const cells = [...document.querySelectorAll('.cal-cell')].slice(7, 14); // 둘째 주
+  const topOf = (cell, sel) => {
+    const el = cell.querySelector(sel);
+    return el ? Math.round(el.getBoundingClientRect().top) : null;
+  };
+  return {
+    heights: [...new Set(cells.map((c) => Math.round(c.getBoundingClientRect().height)))],
+    vdTops: [...new Set(cells.map((c) => topOf(c, '.tag.vd')).filter((v) => v !== null))],
+    cntTops: [...new Set(cells.map((c) => topOf(c, '.cnt')).filter((v) => v !== null))],
+  };
+});
+checks.push([`달력 칸 높이가 모두 같음 (${rowGeom.heights.join(',')})`, rowGeom.heights.length === 1]);
+checks.push([`비D 태그가 같은 높이 (${rowGeom.vdTops.length}종)`, rowGeom.vdTops.length === 1]);
+checks.push([`운동 횟수가 같은 높이 (${rowGeom.cntTops.length}종)`, rowGeom.cntTops.length === 1]);
+
+// + 버튼 = 운동 일정 입력
+await page.click('#entry-add');
+await page.waitForTimeout(250);
+checks.push(['+ 버튼 → 운동 일정 시트', await page.isVisible('#evt-sheet')]);
+await page.fill('#evt-title', '골프');
+await page.click('#evt-add');
+await page.waitForTimeout(300);
+checks.push(['일정 목록에 추가됨', (await page.textContent('#evt-list')).includes('골프')]);
+await page.click('#evt-close');
+await page.waitForTimeout(300);
+const evtTexts = await page.$$eval('.cal-cell .evt', (els) => els.map((e) => e.textContent).filter(Boolean));
+checks.push([`달력에 일정 표시 (${evtTexts.join(',')})`, evtTexts.includes('골프')]);
+
+// 운동 횟수가 + 로 바뀌지 않아야 한다 (예전 + 동작이 남아 있지 않은지)
+const pushupAfter = (await page.textContent('.ex-tile:first-child .ex-val')).trim();
+checks.push(['+ 가 운동 횟수를 건드리지 않음', pushupAfter.startsWith('110')]);
 
 // 로컬 수정이 클라우드 값을 덮는지 — 앱에서 누른 값이 화면에 반영돼야 한다
 await page.click('.ex-tile:first-child .plus');   // 푸쉬업 110 → 120

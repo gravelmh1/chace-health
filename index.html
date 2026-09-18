@@ -111,7 +111,7 @@
         <p id="entry-date" class="today">—</p>
         <h2>기록하기</h2>
       </div>
-      <button id="entry-add" class="plusbtn" type="button" aria-label="모든 운동 10회씩 추가">+</button>
+      <button id="entry-add" class="plusbtn" type="button" aria-label="운동 일정 추가">+</button>
     </div>
     <div id="ex-grid" class="ex-grid"></div>
     <h3 class="sec">약</h3>
@@ -127,6 +127,29 @@
     <div id="chart-legend" class="chart-legend"></div>
     <div id="chart-body" class="chart-body"></div>
   </section>
+
+  <div id="evt-sheet" class="sheet" hidden>
+    <div class="sheet-inner" role="dialog" aria-modal="true" aria-label="운동 일정">
+      <div class="sheet-head">
+        <h2>운동 일정</h2>
+        <button id="evt-close" class="pill" type="button">닫기</button>
+      </div>
+      <p id="evt-date" class="today">—</p>
+
+      <label class="fld">
+        <span>일정 이름</span>
+        <input id="evt-title" type="text" placeholder="예: 골프, 운동쉰날" autocomplete="off">
+      </label>
+
+      <div class="sheet-btns">
+        <button id="evt-add" class="btn primary" type="button">추가</button>
+      </div>
+
+      <ul id="evt-list" class="evt-list"></ul>
+      <p class="note">이 앱에서 넣은 일정은 브라우저에만 저장됩니다.
+        Supabase 의 기존 일정은 그대로 두고 함께 표시합니다.</p>
+    </div>
+  </div>
 
   <div id="setup" class="sheet" hidden>
     <div class="sheet-inner" role="dialog" aria-modal="true" aria-label="설정">

@@ -101,7 +101,8 @@ const got = {
 };
 
 const evDays = await page.$$eval('.cal-cell:has(.dot.ev) .d', (els) => els.map((e) => e.textContent));
-const calCounts = await page.$$eval('.cal-cell .cnt', (els) => els.map((e) => e.textContent));
+const calCounts = await page.$$eval('.cal-cell .cnt',
+  (els) => els.map((e) => e.textContent.trim()).filter(Boolean));
 const lgVals = await page.$$eval('.lg-item .lg-val', (els) => els.map((e) => e.textContent));
 
 const checks = [
