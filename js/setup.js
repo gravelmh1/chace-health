@@ -4,12 +4,15 @@
 // 키를 저장한 직후 실제 테이블을 읽어서, config.js 의 컬럼 매핑이
 // 실제 스키마와 맞는지 그 자리에서 보여준다.
 
-import { describeTable } from './supabase.js';
+import { describeTable, callRpc } from './supabase.js';
 import { getAnonKey, setAnonKey, inspectKey, getProfileId, setProfileId } from './settings.js';
 import { getDutaSchedule, setDutaSchedule } from './tracker.js';
 import {
   METRICS_TABLE, METRICS_COL, CALENDAR_TABLE, CALENDAR_COL,
+  DAYS_TABLE, DAYS_COL, EXERCISES, MEDICATIONS,
 } from './config.js';
+import { SYNC_PULL_FN } from './health-queries.js';
+import { unpackSyncPull } from './select.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -70,16 +73,66 @@ async function diagnoseLocalDate() {
   }
 }
 
+/**
+ * RPC 를 먼저 본다. 테이블이 RLS 로 막혀 있어도 이쪽이 열려 있으면 앱은 정상 동작한다.
+ * 그래서 테이블 실패만 보여주면 오해를 부른다.
+ */
+async function diagnoseRpc() {
+  try {
+    const raw = await callRpc(SYNC_PULL_FN);
+    const { metrics, events, days } = unpackSyncPull(raw);
+    const ok = metrics.length > 0;
+    return row(
+      `${SYNC_PULL_FN}()`,
+      ok,
+      `측정 ${metrics.length}행 · 일정 ${events.length}행 · 기록 ${days.length}행` +
+      (ok ? ' — 이 통로로 읽습니다' : ' — 응답은 왔지만 측정 데이터가 비어 있습니다'),
+    );
+  } catch (e) {
+    return row(`${SYNC_PULL_FN}()`, false,
+      `${e.message}${e.missingFunction ? ' (함수가 없습니다)' : ''}`);
+  }
+}
+
+/** workouts / meds JSONB 의 실제 키 이름을 보여준다 (코드가 찾는 이름과 대조) */
+async function diagnoseDayKeys() {
+  try {
+    const { columns, sample } = await describeTable(DAYS_TABLE);
+    if (!columns.length) return row(DAYS_TABLE, false, '행이 없어 확인할 수 없습니다');
+
+    const w = sample?.[DAYS_COL.workouts];
+    const m = sample?.[DAYS_COL.meds];
+    const wKeys = w && typeof w === 'object' ? Object.keys(w) : [];
+    const mKeys = m && typeof m === 'object' ? Object.keys(m) : [];
+
+    const known = new Set(EXERCISES.flatMap((e) => [e.id, ...(e.aliases ?? [])]));
+    const unknown = wKeys.filter((k) => !known.has(k));
+    const medKnown = new Set(MEDICATIONS.map((x) => x.id));
+    const medUnknown = mKeys.filter((k) => !medKnown.has(k));
+
+    const ok = !unknown.length && !medUnknown.length;
+    return row(`${DAYS_TABLE} JSONB 키`, ok,
+      `workouts: ${wKeys.join(', ') || '(없음)'} · meds: ${mKeys.join(', ') || '(없음)'}` +
+      (ok ? '' : ` — 코드가 모르는 키: ${[...unknown, ...medUnknown].join(', ')}`));
+  } catch (e) {
+    return row(`${DAYS_TABLE} JSONB 키`, false, e.message);
+  }
+}
+
 async function runDiagnosis() {
   const diag = $('setup-diag');
-  diag.innerHTML = '<li class="pending">스키마 확인 중…</li>';
+  diag.innerHTML = '<li class="pending">확인 중…</li>';
 
   const parts = await Promise.all([
+    diagnoseRpc(),
     diagnoseTable(METRICS_TABLE, METRICS_COL),
     diagnoseLocalDate(),
     diagnoseTable(CALENDAR_TABLE, CALENDAR_COL),
+    diagnoseTable(DAYS_TABLE, DAYS_COL),
+    diagnoseDayKeys(),
   ]);
-  diag.innerHTML = parts.filter(Boolean).join('');
+  diag.innerHTML = parts.filter(Boolean).join('')
+    + '<li class="pending">RPC 가 ✓ 면 테이블이 ✗ 여도 앱은 정상 동작합니다.</li>';
 }
 
 export function initSetup(onSaved) {
