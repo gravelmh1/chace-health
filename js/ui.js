@@ -19,7 +19,7 @@ import { buildWeekGrid, gridRange, fetchCalendarEvents } from './calendar.js';
 import { renderChart, renderLegend } from './chart.js';
 import {
   loadLog, dayEntry, setMed, setExercise, exerciseTotal,
-  medsDueOn, isDutaDay, MEDICATIONS, EXERCISES,
+  medsDueOn, isDutaDay, loadCloudDays, MEDICATIONS, EXERCISES,
 } from './tracker.js';
 import { CHART_DAYS } from './config.js';
 
@@ -120,10 +120,16 @@ export async function refresh() {
       return;
     }
 
-    const d = await fetchDashboard();
+    // 측정값과 기록(약·운동)을 함께 불러온다. 한쪽이 실패해도 다른 쪽은 보여준다.
+    const [d, days] = await Promise.all([fetchDashboard(), loadCloudDays()]);
+
     renderRenpho(d.renpho);
     renderApple(d);
-    renderErrors(d.errors);
+    renderAllLocal(); // 클라우드 기록이 들어온 뒤 달력·차트를 다시 그린다
+
+    const errors = [...d.errors];
+    if (!days.ok) errors.push(`기록(약·운동): ${days.error}`);
+    renderErrors(errors);
     $('status').hidden = true;
   } catch (e) {
     $('status').hidden = false;

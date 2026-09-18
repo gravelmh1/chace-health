@@ -8,7 +8,7 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { ROWS, CAL_ROWS } from './fixture.js';
+import { ROWS, CAL_ROWS, CLOUD_ROWS } from './fixture.js';
 import { query } from './postgrest-mock.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -57,7 +57,9 @@ await ctx.route('**/rest/v1/**', (route) => {
   const url = new URL(route.request().url());
   requests.push(url.pathname + url.search);
   const table = url.pathname.split('/').pop();
-  const rows = table === 'health_calendar_events' ? CAL_ROWS : ROWS;
+  const rows = table === 'health_calendar_events' ? CAL_ROWS
+    : table === 'health_cloud_days' ? CLOUD_ROWS
+    : ROWS;
   route.fulfill({
     status: 200,
     contentType: 'application/json',
@@ -75,22 +77,6 @@ await page.addInitScript(`{
   }
   Date = MockDate;
 }`);
-
-// 운동/약 기록을 원본 화면과 같은 값으로 심는다.
-// (localStorage 에 저장되는 사용자 입력값 — Supabase 데이터와는 무관)
-const PROFILE = '6eb29763-315a-46b7-bcf7-da24b8f1503e';
-const SEED = {
-  '2026-09-10': { meds: { vitaminD: true },              ex: { pushup: 60,  triceps: 90, shoulder: 60 } },
-  '2026-09-11': { meds: { vitaminD: true, duta: true },  ex: { pushup: 110, triceps: 90, shoulder: 60 } },
-  '2026-09-12': { meds: { vitaminD: true },              ex: { pushup: 60 } },
-  '2026-09-14': { meds: { vitaminD: true },              ex: { pushup: 60 } },
-  '2026-09-15': { meds: { vitaminD: true, duta: true },  ex: { pushup: 110 } },
-  '2026-09-16': { meds: { vitaminD: true },              ex: { pushup: 110 } },
-  '2026-09-17': { meds: { vitaminD: true, duta: true },  ex: { pushup: 110 } },
-};
-await page.addInitScript(([profile, seed]) => {
-  try { localStorage.setItem(`chace:log:${profile}`, JSON.stringify(seed)); } catch {}
-}, [PROFILE, SEED]);
 
 const consoleErrors = [];
 page.on('pageerror', (e) => consoleErrors.push(String(e)));
@@ -180,10 +166,10 @@ checks.push([
   xTicks[0] === '9/4' && xTicks[xTicks.length - 1] === '9/17',
 ]);
 const lgVals = await page.$$eval('.lg-item .lg-val', (els) => els.map((e) => e.textContent));
-checks.push([`차트 범례 합계 = 620·0·180·120 (${lgVals.join(' ')})`, lgVals.join(',') === '620회,0회,180회,120회']);
+checks.push([`차트 범례 합계 = 620·0·180·120 · health_cloud_days 에서 읽음 (${lgVals.join(' ')})`, lgVals.join(',') === '620회,0회,180회,120회']);
 const calCounts = await page.$$eval('.cal-cell .cnt', (els) => els.map((e) => e.textContent));
 checks.push([
-  `달력 운동 횟수 (${calCounts.join(' ')})`,
+  `달력 운동 횟수 = 클라우드 기록 (${calCounts.join(' ')})`,
   calCounts.join(',') === '210회,260회,60회,60회,110회,110회,110회',
 ]);
 const lgItems = await page.$$eval('.lg-item .lg-name', (els) => els.map((e) => e.textContent));
@@ -193,6 +179,21 @@ checks.push([
 ]);
 const marks = await page.$$eval('.lg-mark', (els) => els.length);
 checks.push(['범례 도형 마커 4개 (색약 대비 보조부호)', marks === 4]);
+
+// 로컬 수정이 클라우드 값을 덮는지 — 앱에서 누른 값이 화면에 반영돼야 한다
+await page.click('.ex-tile:first-child .plus');   // 푸쉬업 110 → 120
+await page.waitForTimeout(250);
+checks.push([
+  '앱에서 올린 값이 화면에 반영됨 (110 → 120)',
+  (await page.textContent('.ex-tile:first-child .ex-val')).trim().startsWith('120'),
+]);
+// 0 으로 내리면 클라우드 값이 되살아나지 않아야 한다
+for (let i = 0; i < 12; i++) await page.click('.ex-tile:first-child .minus');
+await page.waitForTimeout(250);
+checks.push([
+  '0 으로 내리면 클라우드 값이 되살아나지 않음',
+  (await page.textContent('.ex-tile:first-child .ex-val')).trim().startsWith('0'),
+]);
 
 // 운동 타일
 const tiles = await page.$$eval('.ex-tile .ex-name', (els) => els.map((e) => e.textContent));

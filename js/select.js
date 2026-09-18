@@ -68,7 +68,7 @@ export function dailyTotal(rows, profileId, metric, localDate) {
  */
 export function unpackSyncPull(payload) {
   const body = Array.isArray(payload) ? payload[0] : payload;
-  if (!body || typeof body !== 'object') return { metrics: [], events: [] };
+  if (!body || typeof body !== 'object') return { metrics: [], events: [], days: [] };
 
   const pick = (...names) => {
     for (const n of names) if (Array.isArray(body[n])) return body[n];
@@ -83,6 +83,7 @@ export function unpackSyncPull(payload) {
 
   const metrics = pick('metrics', 'external_metrics', 'health_external_metrics') ?? [];
   const events = pick('calendar_events', 'events', 'calendar', 'health_calendar_events') ?? [];
+  const days = pick('days', 'cloud_days', 'health_cloud_days', 'day_records') ?? [];
 
   // 키 이름으로 못 찾으면 행의 생김새로 가른다
   if (!metrics.length && !events.length) {
@@ -90,7 +91,8 @@ export function unpackSyncPull(payload) {
     return {
       metrics: all.filter((r) => r && C.metric in r),
       events: all.filter((r) => r && 'start_at' in r),
+      days: all.filter((r) => r && 'day' in r && ('workouts' in r || 'meds' in r)),
     };
   }
-  return { metrics, events };
+  return { metrics, events, days };
 }

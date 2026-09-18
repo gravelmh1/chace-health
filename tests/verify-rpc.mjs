@@ -11,7 +11,7 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { ROWS, CAL_ROWS } from './fixture.js';
+import { ROWS, CAL_ROWS, CLOUD_ROWS } from './fixture.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css' };
@@ -48,7 +48,7 @@ await ctx.route('**/rest/v1/**', (route) => {
     return route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({ metrics: ROWS, calendar_events: CAL_ROWS }),
+      body: JSON.stringify({ metrics: ROWS, calendar_events: CAL_ROWS, days: CLOUD_ROWS }),
     });
   }
 
@@ -96,6 +96,8 @@ const got = {
 };
 
 const evDays = await page.$$eval('.cal-cell:has(.dot.ev) .d', (els) => els.map((e) => e.textContent));
+const calCounts = await page.$$eval('.cal-cell .cnt', (els) => els.map((e) => e.textContent));
+const lgVals = await page.$$eval('.lg-item .lg-val', (els) => els.map((e) => e.textContent));
 
 const checks = [
   ['RPC 를 호출함', rpcCalls > 0],
@@ -111,6 +113,10 @@ const checks = [
   ['걸음수가 legacy snapshot(6,100)이 아님', got.steps !== '6,100'],
   ['거리 = 1.1 mi', got.stepsNote.startsWith('1.1 mi')],
   [`달력 일정 = 17/18 (${evDays.join(',') || '없음'})`, JSON.stringify(evDays) === JSON.stringify(['17', '18'])],
+  [`약·운동 기록도 RPC 에서 (${calCounts.join(' ') || '없음'})`,
+   calCounts.join(',') === '210회,260회,60회,60회,110회,110회,110회'],
+  [`차트 범례 = 620·0·180·120 (${lgVals.join(' ')})`,
+   lgVals.join(',') === '620회,0회,180회,120회'],
   ['JS 런타임 오류 없음', consoleErrors.length === 0],
 ];
 

@@ -5,12 +5,17 @@
 //
 // 저장 형태 (localStorage):
 //   chace:log:<profileId> = {
-//     "2026-09-17": { meds: { vitaminD: true }, ex: { pushup: 120, dumbbell: 90 } }
+//     "2026-09-17": { meds: { vitD: true }, ex: { pushup: 120, dumbbell: 90 } }
 //   }
 
-import { MEDICATIONS, EXERCISES, DUTA_DEFAULT_INTERVAL_DAYS } from './config.js';
+import {
+  MEDICATIONS, EXERCISES, DUTA_DEFAULT_INTERVAL_DAYS,
+  DAYS_TABLE, DAYS_COL as D,
+} from './config.js';
 import { getProfileId } from './settings.js';
 import { laDateString } from './time.js';
+import { selectRows } from './supabase.js';
+import { pullSyncData } from './health-queries.js';
 
 const logKey = () => `chace:log:${getProfileId()}`;
 const dutaKey = () => `chace:duta:${getProfileId()}`;
@@ -33,7 +38,87 @@ function writeJson(key, value) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// 기록은 Supabase 의 health_cloud_days 에 있다.
+//
+// 이 앱에서 입력한 값은 브라우저에 따로 쌓이고(cloud 로 쓰지는 않는다),
+// 화면에는 "클라우드 값 위에 로컬 수정본을 덮은" 결과를 보여준다.
+// 클라우드를 덮어쓰지 않으므로 기존 기록이 손상될 일이 없다.
+// ---------------------------------------------------------------------------
+
+let cloudDays = {};   // { 'YYYY-MM-DD': { meds, workouts } }
+
+/** workouts JSONB 에서 운동 값을 꺼낸다. 키 이름이 확정되지 않아 별칭도 함께 본다. */
+function readWorkouts(raw) {
+  const out = {};
+  if (!raw || typeof raw !== 'object') return out;
+  for (const ex of EXERCISES) {
+    for (const key of [ex.id, ...(ex.aliases ?? [])]) {
+      const v = Number(raw[key]);
+      if (Number.isFinite(v) && v > 0) { out[ex.id] = Math.floor(v); break; }
+    }
+  }
+  return out;
+}
+
+function readMeds(raw) {
+  const out = {};
+  if (!raw || typeof raw !== 'object') return out;
+  for (const med of MEDICATIONS) if (raw[med.id]) out[med.id] = true;
+  return out;
+}
+
+function ingestDays(rows) {
+  const days = {};
+  for (const row of rows ?? []) {
+    const day = String(row?.[D.day] ?? '').slice(0, 10);
+    if (!day) continue;
+    days[day] = { meds: readMeds(row[D.meds]), ex: readWorkouts(row[D.workouts]) };
+  }
+  return days;
+}
+
+/**
+ * 클라우드 기록을 불러온다. RPC 응답에 들어 있으면 그것을 쓰고,
+ * 없으면 테이블을 직접 읽는다. 실패해도 로컬 입력은 계속 동작한다.
+ */
+export async function loadCloudDays() {
+  try {
+    const pulled = await pullSyncData();
+    if (pulled?.days?.length) {
+      cloudDays = ingestDays(pulled.days);
+      return { ok: true, via: 'rpc', count: Object.keys(cloudDays).length };
+    }
+  } catch { /* 아래 직접 조회로 넘어간다 */ }
+
+  try {
+    const rows = await selectRows(DAYS_TABLE, {
+      select: [D.day, D.meds, D.workouts].join(','),
+      [D.profileId]: `eq.${getProfileId()}`,
+      order: `${D.day}.desc`,
+      limit: '400',
+    });
+    cloudDays = ingestDays(rows);
+    return { ok: true, via: 'table', count: Object.keys(cloudDays).length };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+}
+
+/** 클라우드 값 위에 이 앱에서 입력한 로컬 수정본을 덮은 결과 */
 export function loadLog() {
+  const local = readJson(logKey(), {});
+  const merged = {};
+  for (const day of new Set([...Object.keys(cloudDays), ...Object.keys(local)])) {
+    const c = cloudDays[day] ?? { meds: {}, ex: {} };
+    const l = local[day] ?? { meds: {}, ex: {} };
+    merged[day] = { meds: { ...c.meds, ...l.meds }, ex: { ...c.ex, ...l.ex } };
+  }
+  return merged;
+}
+
+/** 이 앱에서 입력한 값만 (클라우드 제외) */
+function loadLocal() {
   return readJson(logKey(), {});
 }
 
@@ -42,23 +127,21 @@ export function dayEntry(log, dateStr) {
 }
 
 export function setMed(dateStr, medId, taken) {
-  const log = loadLog();
+  const log = loadLocal();
   const day = { meds: {}, ex: {}, ...log[dateStr] };
   day.meds = { ...day.meds };
-  if (taken) day.meds[medId] = true;
-  else delete day.meds[medId];
+  day.meds[medId] = !!taken; // false 도 남긴다 (클라우드의 true 를 덮기 위해)
   log[dateStr] = day;
   writeJson(logKey(), log);
   return log;
 }
 
 export function setExercise(dateStr, exId, count) {
-  const log = loadLog();
+  const log = loadLocal();
   const day = { meds: {}, ex: {}, ...log[dateStr] };
   day.ex = { ...day.ex };
-  const n = Math.max(0, Math.floor(Number(count) || 0));
-  if (n > 0) day.ex[exId] = n;
-  else delete day.ex[exId];
+  // 0 도 값으로 남긴다. 지워버리면 클라우드 값이 다시 올라와 '0 으로 내림'이 안 된다.
+  day.ex[exId] = Math.max(0, Math.floor(Number(count) || 0));
   log[dateStr] = day;
   writeJson(logKey(), log);
   return log;
@@ -104,6 +187,11 @@ export function medProgress(log, dateStr) {
   const due = medsDueOn(dateStr);
   const taken = dayEntry(log, dateStr).meds;
   return { done: due.filter((m) => taken[m.id]).length, total: due.length };
+}
+
+/** 클라우드에서 읽어온 날짜 수 (진단용) */
+export function cloudDayCount() {
+  return Object.keys(cloudDays).length;
 }
 
 export { MEDICATIONS, EXERCISES };

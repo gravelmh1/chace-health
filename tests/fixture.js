@@ -73,3 +73,20 @@ export const CAL_ROWS = [
   { profile_id: P, calendar_id: 'c1', event_id: 'e3', title: '야간 산책', category: '운동',
     start_at: '2026-10-01T04:30:00Z', end_at: '2026-10-01T05:00:00Z', location: null, source: 'google_calendar' },
 ];
+
+// --- health_cloud_days: 약 / 운동 기록 -----------------------------------------
+// 원본 앱 화면과 같은 값 (9/10 210회, 9/11 260회 …, 합계 620·0·180·120)
+const day = (d, meds, workouts) => ({
+  profile_id: P, day: d, meds, workouts, events: null,
+  updated_at: `${d}T23:00:00Z`,
+});
+
+export const CLOUD_ROWS = [
+  day('2026-09-10', { vitD: true },             { pushup: 60,  triceps: 90, shoulder: 60 }),
+  day('2026-09-11', { vitD: true, duta: true }, { pushup: 110, triceps: 90, shoulder: 60 }),
+  day('2026-09-12', { vitD: true },             { pushup: 60 }),
+  day('2026-09-14', { vitD: true },             { pushup: 60 }),
+  day('2026-09-15', { vitD: true, duta: true }, { pushup: 110 }),
+  day('2026-09-16', { vitD: true },             { pushup: 110 }),
+  day('2026-09-17', { vitD: true, duta: true }, { pushup: 110 }),
+];

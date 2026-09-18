@@ -37,6 +37,19 @@ npm run dev      # http://127.0.0.1:5173
 |---|---|
 | `health_external_metrics` | `profile_id`, `recorded_at`, `source`, `metric`, `value`, `unit`, `metadata`(jsonb), `updated_at` |
 | `health_calendar_events` | `profile_id`, `calendar_id`, `event_id`, `title`, `category`, `start_at`, `end_at`, `location`, `source`, `updated_at` |
+| `health_cloud_days` | `profile_id`, `day`, `meds`(jsonb), `workouts`(jsonb), `events`(jsonb), `updated_at` — PK `(profile_id, day)` |
+
+약·운동 기록은 `health_cloud_days` 에 있습니다. 같은 구조의 `health_day_records` 는
+비어 있는 예전 테이블이라 쓰지 않습니다.
+
+- `meds` 키: `vitD`(비타민D), `duta`(두타)
+- `workouts` 키: `pushup` / `dumbbell` / `triceps` / `shoulder` — **아직 확정 전**이라
+  `js/config.js` 의 `EXERCISES[].aliases` 에 적힌 표기(camelCase, snake_case, 복수형)도
+  함께 찾습니다. 실제 키가 확정되면 `aliases` 를 지우면 됩니다.
+
+**쓰기는 하지 않습니다.** 앱에서 입력한 값은 브라우저에만 쌓이고, 화면에는
+"클라우드 값 위에 로컬 수정본을 덮은" 결과를 보여줍니다. 기존 42일치 기록이
+손상될 일이 없습니다. 반대로 이 앱에서 입력한 값은 원본 앱에 반영되지 않습니다.
 
 **주의할 이름들** — 흔히 틀리는 지점입니다.
 

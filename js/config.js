@@ -88,8 +88,9 @@ export const RENPHO_FALLBACK_URL = 'https://apps.apple.com/us/search?term=RENPHO
 // health_external_metrics 를 덮어쓰지 않는다.
 // ---------------------------------------------------------------------------
 
+// id 는 health_cloud_days.meds JSONB 의 키와 같아야 한다.
 export const MEDICATIONS = [
-  { id: 'vitaminD', label: '비타민D', short: '비D', daily: true },
+  { id: 'vitD', label: '비타민D', short: '비D', daily: true },
   // 두타는 "복용 예정일"에만 표시된다. 원본 앱의 주기를 확인할 수 없어
   // 기본값을 매일(1일)로 두었다. 설정에서 주기와 기준일을 바꿀 수 있다.
   { id: 'duta', label: '두타', short: '두타', daily: false },
@@ -98,14 +99,38 @@ export const MEDICATIONS = [
 // 원본 앱 화면에서 두타는 이틀에 한 번(7, 9, 11, 13, 15, 17, 19...) 표시된다.
 export const DUTA_DEFAULT_INTERVAL_DAYS = 2;
 
+// ---------------------------------------------------------------------------
+// 약 / 운동 기록이 실제로 저장되는 테이블.
+//
+// meds, workouts 는 JSONB 이고 키는 각각 MEDICATIONS[].id, EXERCISES[].id 를 쓴다.
+// (health_day_records 는 같은 구조의 예전 테이블이지만 비어 있어 쓰지 않는다)
+// ---------------------------------------------------------------------------
+export const DAYS_TABLE = 'health_cloud_days';
+
+export const DAYS_COL = {
+  profileId: 'profile_id',
+  day: 'day',
+  meds: 'meds',
+  workouts: 'workouts',
+  events: 'events',
+  updatedAt: 'updated_at',
+};
+
 // shape 은 색 없이도 계열을 구분하기 위한 보조 부호다.
 // 색약(적록) 환경에서 삼두(초록) ↔ 덤벨(주황) 선이 거의 겹치기 때문에,
 // 원본이 이미 타일에 쓰고 있는 도형을 차트 마커로도 그대로 쓴다.
+//
+// workouts JSONB 의 실제 키 이름은 아직 확정되지 않았다. 그래서 id 하나만 보지 않고
+// aliases 에 적힌 이름도 함께 찾는다. 확정되면 aliases 를 지우면 된다.
 export const EXERCISES = [
-  { id: 'pushup',   label: '푸쉬업', shape: 'arrow',   color: '#2F7BEF' },
-  { id: 'dumbbell', label: '덤벨',   shape: 'diamond', color: '#F5A623' },
-  { id: 'triceps',  label: '삼두',   shape: 'circle',  color: '#34C759' },
-  { id: 'shoulder', label: '어깨',   shape: 'triangle',color: '#9B59E8' },
+  { id: 'pushup',   label: '푸쉬업', shape: 'arrow',    color: '#2F7BEF',
+    aliases: ['pushUp', 'push_up', 'pushups', 'pushUps'] },
+  { id: 'dumbbell', label: '덤벨',   shape: 'diamond',  color: '#F5A623',
+    aliases: ['dumbBell', 'dumb_bell', 'dumbbells'] },
+  { id: 'triceps',  label: '삼두',   shape: 'circle',   color: '#34C759',
+    aliases: ['tricep', 'tri', 'triceps_ext'] },
+  { id: 'shoulder', label: '어깨',   shape: 'triangle', color: '#9B59E8',
+    aliases: ['shoulders', 'shoulderPress', 'shoulder_press'] },
 ];
 
 /** 차트에 표시할 기간 (일) */
