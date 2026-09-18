@@ -49,6 +49,23 @@ jobs:
           mkdir -p _site
           cp index.html app.css icon.png manifest.webmanifest _site/
           cp -r js tools _site/
+
+      # GitHub Pages 는 파일에 10분 캐시를 건다. 그래서 새로 배포해도
+      # 아이폰이 옛 JS 를 계속 쓰는 일이 생긴다 — 이 앱이 고친 문제와 같은 종류다.
+      # 파일 내용은 그대로 두고 참조 주소에만 커밋 해시를 붙여, 배포마다
+      # 다른 URL 이 되게 한다. 캐시가 살아 있어도 새 주소는 새로 받는다.
+      - name: 정적 파일 주소에 버전 붙이기
+        run: |
+          V="${GITHUB_SHA::12}"
+          # JS 모듈끼리의 상대 import
+          find _site/js -name '*.js' -print0 | xargs -0 sed -i -E "s|(from '\./[^']+\.js)'|\1?v=$V'|g"
+          # 진입점과 스타일시트
+          sed -i -E "s|(href=\"app\.css)\"|\1?v=$V\"|" _site/index.html
+          sed -i -E "s|(from '\./js/ui\.js)'|\1?v=$V'|" _site/index.html
+          sed -i -E "s|(from '\.\./js/[^']+\.js)'|\1?v=$V'|g" _site/tools/*.html
+          echo "버전 $V 적용:"
+          grep -o "ui\.js?v=[a-f0-9]*" _site/index.html | head -1
+          grep -o "config\.js?v=[a-f0-9]*" _site/js/ui.js | head -1
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site
