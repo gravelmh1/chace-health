@@ -18,7 +18,8 @@
 //  4. 데이터가 없으면 0 이 아니라 null 을 돌려준다.
 //     "측정값 0" 과 "측정 기록 없음" 은 다른 상태이고, UI 도 다르게 보여야 한다.
 
-import { selectOne, selectRows } from './supabase.js';
+import { selectOne, selectRows, callRpc } from './supabase.js';
+import { unpackSyncPull, latestMetric, dailyTotal } from './select.js';
 import {
   METRICS_TABLE, METRICS_COL as C, SOURCE,
 } from './config.js';
@@ -184,8 +185,89 @@ export async function fetchDistanceToday() {
   return { ...last, localDate: last.metadata?.local_date ?? null, isToday: false };
 }
 
+// ---------------------------------------------------------------------------
+// 읽기 경로는 두 가지다.
+//
+//  1. RPC health_sync_pull() — 원본 앱이 쓰던 통로.
+//     테이블에 RLS 가 걸려 있어 anon 으로 직접 SELECT 가 막히는 환경에서도
+//     동작한다. 한 번의 요청으로 최근 데이터를 통째로 받아 클라이언트에서 추린다.
+//
+//  2. 테이블 직접 조회 — RPC 가 없을 때의 폴백.
+//
+// 먼저 1을 시도하고, 함수가 없을 때만 2로 내려간다.
+// 어느 쪽이든 고르는 규칙(최신 1건, 일일 집계 우선)은 동일하다.
+// ---------------------------------------------------------------------------
+
+export const SYNC_PULL_FN = 'health_sync_pull';
+
+let rpcAvailable = null; // null=아직 모름, false=없음(폴백 고정)
+
+// 한 번의 새로고침에서 대시보드와 달력이 같은 응답을 쓰도록 아주 짧게만 캐시한다.
+// (캐시 때문에 옛날 값이 남는 일이 없도록 수명을 3초로 묶는다)
+const PULL_TTL_MS = 3000;
+let lastPull = { at: 0, data: null };
+
+/** RPC 응답을 가져온다. 함수가 없으면 null. */
+export async function pullSyncData() {
+  if (rpcAvailable === false) return null;
+  if (lastPull.data && Date.now() - lastPull.at < PULL_TTL_MS) return lastPull.data;
+
+  try {
+    const data = unpackSyncPull(await callRpc(SYNC_PULL_FN));
+    rpcAvailable = true;
+    lastPull = { at: Date.now(), data };
+    return data;
+  } catch {
+    rpcAvailable = false;
+    lastPull = { at: 0, data: null };
+    return null;
+  }
+}
+
+/** RPC 로 받은 행에서 대시보드를 구성한다. */
+function dashboardFromRows(metrics) {
+  const profileId = getProfileId();
+  const today = laToday();
+
+  const renphoMetrics = {};
+  let syncedAt = null;
+  for (const m of RENPHO_METRICS) {
+    const v = latestMetric(metrics, profileId, SOURCE.renpho, m);
+    renphoMetrics[m] = v;
+    if (v?.recordedAt && (!syncedAt || new Date(v.recordedAt) > new Date(syncedAt))) {
+      syncedAt = v.recordedAt;
+    }
+  }
+
+  const stepsToday = dailyTotal(metrics, profileId, 'stepCount', today);
+  const distToday = dailyTotal(metrics, profileId, 'distanceWalkingRunning', today);
+
+  const lastOf = (metric) => {
+    const last = latestMetric(metrics, profileId, SOURCE.apple, metric);
+    return last ? { ...last, localDate: last.metadata?.local_date ?? null, isToday: false } : null;
+  };
+
+  return {
+    renpho: { ...renphoMetrics, syncedAt, errors: [] },
+    heartRate: latestMetric(metrics, profileId, SOURCE.apple, 'heartRate'),
+    steps: stepsToday ? { ...stepsToday, isToday: true } : lastOf('stepCount'),
+    distance: distToday ? { ...distToday, isToday: true } : lastOf('distanceWalkingRunning'),
+    errors: [],
+  };
+}
+
 /** 세 카드를 한 번에. 개별 실패가 전체를 죽이지 않는다. */
 export async function fetchDashboard() {
+  const pulled = await pullSyncData();
+  if (pulled?.metrics?.length) {
+    return { ...dashboardFromRows(pulled.metrics), via: 'rpc', fetchedAt: new Date().toISOString() };
+  }
+  // RPC 가 없거나 빈 응답이면 테이블을 직접 읽어 본다.
+  // 그쪽이 막혀 있으면 그 오류 메시지가 원인(RLS 등)을 드러낸다.
+  return fetchDashboardByTable();
+}
+
+async function fetchDashboardByTable() {
   const [renpho, heartRate, steps, distance] = await Promise.allSettled([
     fetchRenpho(),
     fetchHeartRate(),
@@ -206,6 +288,7 @@ export async function fetchDashboard() {
     steps: unwrap(steps),
     distance: unwrap(distance),
     errors: [...errs, ...(renphoVal?.errors ?? [])],
+    via: 'table',
     fetchedAt: new Date().toISOString(),
   };
 }

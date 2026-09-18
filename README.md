@@ -63,6 +63,21 @@ npm run dev      # http://127.0.0.1:5173
 
 `health_calendar_events` 기본값: `category = '운동'`, `source = 'google_calendar'`
 
+## 읽기 경로 — RPC 우선, 테이블 폴백
+
+`health_external_metrics` 에 RLS 가 걸려 있으면 anon 키로는 직접 SELECT 가 막힙니다.
+원본 앱이 쓰던 `health_sync_pull()` 은 그 제약을 넘어 정해진 데이터만 돌려주는 통로입니다.
+
+1. **`rpc/health_sync_pull()`** 을 먼저 호출합니다. 응답에서 metric 행과 캘린더 행을
+   꺼내 클라이언트에서 추립니다. 반환 키 이름이 확정되지 않아
+   `metrics` / `calendar_events` 등 여러 모양을 받아들입니다 (`js/select.js`).
+2. 함수가 없거나 빈 응답이면 **테이블을 직접 조회**합니다.
+   그쪽도 막혀 있으면 오류 메시지가 RLS 를 지목합니다.
+
+어느 경로든 고르는 규칙은 같습니다 — 최신 1건, 일일 집계 우선.
+`npm run test:rpc` 가 "테이블 전부 401 + RPC 정상" 상태에서 두 경로의 결과가
+같은 값을 내는지 확인합니다.
+
 ## 데이터 흐름에서 지키는 규칙
 
 옛날 값이 화면에 남는 사고를 구조적으로 막기 위한 규칙입니다. 고칠 때 이 전제를 깨지 마세요.
@@ -99,7 +114,8 @@ npm run test:all
 |---|---|
 | `npm test` | 실제 Chromium 에서 앱을 띄우고 화면에 찍힌 값을 검증 (31개) |
 | `NOW=2026-09-18T03:00:00Z npm test` | LA 는 9/17 저녁, UTC 는 이미 9/18 인 시간대 경계 |
-| `npm run test:setup` | 설정 화면 · service_role 키 차단 · 키 유지 (14개) |
+| `npm run test:rpc` | RLS 로 테이블이 막힌 상태에서 RPC 경로가 같은 값을 내는지 (14개) |
+| `npm run test:setup` | 설정 화면 · service_role 키 차단 · URL 오입력 차단 · 키 유지 |
 
 Supabase REST 응답을 픽스처로 가로채되, 앱이 만든 쿼리 문자열을 실제로 해석해서
 결과를 돌려줍니다 — **쿼리가 틀리면 틀린 값이 화면에 뜨고 테스트가 실패합니다.**

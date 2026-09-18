@@ -19,6 +19,8 @@ jobs:
         run: npm test
       - name: 시간대 경계 (LA 는 9/17 저녁, UTC 는 9/18)
         run: NOW=2026-09-18T03:00:00Z npm test
+      - name: RLS 차단 + RPC 경로
+        run: npm run test:rpc
       - name: 설정 화면 검증
         run: npm run test:setup
       - uses: actions/upload-artifact@v4

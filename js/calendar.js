@@ -8,6 +8,7 @@ import { selectRows } from './supabase.js';
 import { CALENDAR_TABLE, CALENDAR_COL as CC, WORKOUT_CATEGORY, CALENDAR_WEEKS } from './config.js';
 import { getProfileId } from './settings.js';
 import { laDateString, laToday, toDate, weekStart, shiftDate } from './time.js';
+import { pullSyncData } from './health-queries.js';
 
 /**
  * [fromDate, toDate] 범위(LA 기준 날짜 문자열)의 일정을 날짜별로 묶어서 반환.
@@ -16,6 +17,16 @@ import { laDateString, laToday, toDate, weekStart, shiftDate } from './time.js';
 export async function fetchCalendarEvents(fromDate, toDate_) {
   const first = fromDate;
   const next = shiftDate(toDate_, 1);
+
+  // RLS 때문에 테이블 직접 조회가 막힌 환경에서도 동작하도록,
+  // RPC 응답이 있으면 거기서 일정을 꺼내 쓴다.
+  const pulled = await pullSyncData();
+  if (pulled?.events?.length) {
+    return groupByDate(pulled.events.filter((r) => {
+      const d = laDateString(toDate(r[CC.startAt]) ?? 0);
+      return d >= fromDate && d <= toDate_;
+    }));
+  }
 
   let rows;
   try {
@@ -32,6 +43,10 @@ export async function fetchCalendarEvents(fromDate, toDate_) {
     throw new Error(`calendar: ${e.message}`);
   }
 
+  return groupByDate(rows);
+}
+
+function groupByDate(rows) {
   const byDate = {};
   for (const row of rows) {
     const d = toDate(row[CC.startAt]);

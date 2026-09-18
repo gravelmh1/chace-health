@@ -7,8 +7,9 @@
   "scripts": {
     "test": "node tests/verify.mjs",
     "test:setup": "node tests/verify-setup.mjs",
-    "test:all": "npm test && NOW=2026-09-18T03:00:00Z SHOT=tests/screenshot-evening.png npm test && npm run test:setup",
-    "dev": "node tests/serve.mjs"
+    "test:all": "npm test && NOW=2026-09-18T03:00:00Z SHOT=tests/screenshot-evening.png npm test && npm run test:rpc && npm run test:setup",
+    "dev": "node tests/serve.mjs",
+    "test:rpc": "node tests/verify-rpc.mjs"
   },
   "devDependencies": {
     "playwright": "^1.50.1"
