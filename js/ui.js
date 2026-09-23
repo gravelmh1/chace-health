@@ -25,6 +25,9 @@ import {
 import { CHART_DAYS } from './config.js';
 import { APP_VERSION, checkForUpdate } from './version.js';
 import { consumeKeyFromUrl } from './key-link.js';
+import { repairKey } from './key-repair.js';
+import { checkKey } from './supabase.js';
+import { getAnonKey, setAnonKey } from './settings.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -120,6 +123,34 @@ function renderErrors(errors) {
 }
 
 let refreshing = false;
+let repairTried = false;
+
+/**
+ * 저장된 키가 거부되면 헷갈리는 글자를 바꿔 가며 맞는 키를 찾는다.
+ * 링크나 손입력으로 들어온 키가 한 글자 틀렸을 때, 설정을 열지 않아도 스스로 낫는다.
+ * 세션당 한 번만 시도한다 — 매번 수백 번씩 요청을 보내지 않기 위해서다.
+ */
+async function autoRepairKey() {
+  if (repairTried) return false;
+  repairTried = true;
+
+  const key = getAnonKey();
+  if (!key) return false;
+
+  const probe = await checkKey();
+  if (probe.ok) return false;
+
+  $('status').hidden = false;
+  const result = await repairKey(key, (done, total) => {
+    $('status').textContent = `키를 맞춰 보는 중… ${done}/${total}`;
+  });
+
+  if (result.found) {
+    setAnonKey(result.found);
+    return true;
+  }
+  return false;
+}
 
 export async function refresh() {
   if (refreshing) return;
@@ -138,6 +169,9 @@ export async function refresh() {
       openSetup();
       return;
     }
+
+    // 키가 거부되면 한 번은 스스로 고쳐 본 뒤 읽는다.
+    if (await autoRepairKey()) $('status').textContent = '키를 찾았습니다. 불러오는 중…';
 
     // 측정값과 기록(약·운동)을 함께 불러온다. 한쪽이 실패해도 다른 쪽은 보여준다.
     const [d, days] = await Promise.all([fetchDashboard(), loadCloudDays()]);
@@ -404,6 +438,7 @@ export function init() {
     const r = consumeKeyFromUrl();
     if (r.applied) {
       renderErrors([]);
+      repairTried = false; // 새 키가 들어왔으니 교정을 다시 시도할 수 있어야 한다
       refresh();
       renderAllLocal();
     } else if (r.reason) {

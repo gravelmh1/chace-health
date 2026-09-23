@@ -92,6 +92,23 @@ await page.click('#setup-close');
 await page.waitForTimeout(700);
 checks.push(['교정 후 데이터가 뜸', (await page.textContent('#renpho-weight')).trim() === '78.3']);
 
+// 링크로 잘못된 키가 들어와도 스스로 고쳐야 한다 (설정을 열지 않고)
+await page.evaluate(() => localStorage.clear());
+attempts = 0;
+// 빈 페이지를 거쳐 실제 로드가 일어나게 한다.
+// 해시만 바뀌면 스크립트가 다시 실행되지 않아, 앱을 새로 여는 상황이 재현되지 않는다.
+await page.goto('about:blank');
+await page.goto(`${base}/index.html#key=${encodeURIComponent(TYPED)}`);
+await page.waitForFunction(
+  () => document.getElementById('renpho-weight').textContent.trim() !== '—',
+  { timeout: 60000 },
+).catch(() => {});
+await page.waitForTimeout(500);
+checks.push(['링크로 온 잘못된 키도 스스로 교정',
+  await page.evaluate(() => localStorage.getItem('chace:anonKey')) === REAL]);
+checks.push(['교정 후 화면에 값이 뜸',
+  (await page.textContent('#renpho-weight')).trim() === '78.3']);
+
 console.log('\n=== 키 자동 교정 검증 ===');
 let failed = 0;
 for (const [name, ok] of checks) {
