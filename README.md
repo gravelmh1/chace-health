@@ -31,6 +31,10 @@ https://gravelmh1.github.io/chace-health/#key=sb_publishable_xxxx
 형식이 정해진 앞부분(`sb_publishable_`)은 건드리지 않고, 조합이 너무 많으면
 포기합니다 — 긴 JWT 는 자동 교정 대상이 아닙니다.
 
+**키 확인 방법**: 앱이 실제로 쓰는 경로(RPC → 테이블)로 확인합니다.
+PostgREST 루트(`/rest/v1/`)는 anon 에게 열려 있지 않을 수 있어, 그 주소로 판정하면
+키가 정확해도 401 이 나고 그 하나 때문에 모든 검사와 조회가 막힙니다.
+
 **인증 헤더**: `apikey` 는 항상 보내고, `Authorization: Bearer` 는 키가 JWT 일 때만
 보냅니다. 새 형식(`sb_publishable_…`)은 JWT 가 아니라서 Bearer 로 함께 보내면
 서버가 그것을 토큰으로 파싱하려다 실패해 401 을 돌려줍니다 —

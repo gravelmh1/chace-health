@@ -140,7 +140,8 @@ async function autoRepairKey() {
   if (!key) return false;
 
   const probe = await checkKey();
-  if (probe.ok) return false;
+  // 권한/RLS 문제라면 글자를 바꿔 봐야 소용없다. 키가 거부된 경우에만 시도한다.
+  if (probe.ok || !probe.badKey) return false;
 
   $('status').hidden = false;
   const result = await repairKey(key, (done, total) => {

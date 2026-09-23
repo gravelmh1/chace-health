@@ -7,7 +7,7 @@
 // 방법: 헷갈리는 자리마다 후보 글자를 갈아 끼운 변형들을 만들고, 실제로 요청을
 //       보내 어느 것이 통과하는지 본다. 맞는 하나만 남는다.
 
-import { SUPABASE_URL } from './config.js';
+import { SUPABASE_URL, SYNC_PULL_FNS } from './config.js';
 import { authHeaders } from './supabase.js';
 
 // 1단계: 가장 자주 틀리는 것들. 이것만 모든 조합을 만든다.
@@ -101,19 +101,28 @@ export function singleEditVariants(key) {
   return [...new Set(out)].filter((v) => v !== key);
 }
 
-/** 이 키로 Supabase 가 응답하는지 확인한다. */
+/**
+ * 이 키로 실제 읽기 통로가 열리는지 확인한다.
+ *
+ * PostgREST 루트(/rest/v1/)는 anon 에게 열려 있지 않을 수 있어, 키가 맞아도
+ * 401 이 난다. 그 주소로 판정하면 어떤 키도 통과하지 못한다.
+ */
 async function keyWorks(key, signal) {
-  try {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/`, {
-      method: 'GET',
-      cache: 'no-store',
-      signal,
-      headers: authHeaders(key),
-    });
-    return res.ok;
-  } catch {
-    return false;
+  for (const fn of SYNC_PULL_FNS) {
+    try {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
+        method: 'POST',
+        body: '{}',
+        cache: 'no-store',
+        signal,
+        headers: { ...authHeaders(key), 'Content-Type': 'application/json' },
+      });
+      if (res.ok) return true;
+    } catch {
+      return false;
+    }
   }
+  return false;
 }
 
 /**

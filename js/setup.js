@@ -125,18 +125,22 @@ async function diagnoseDayKeys() {
 /** 키가 유효한지 먼저 본다. 이게 ✗ 면 아래 항목은 전부 ✗ 일 수밖에 없다. */
 async function diagnoseKey() {
   const r = await checkKey();
-  return row('anon key 유효성', r.ok,
-    r.ok ? '키는 정상입니다 — 아래가 ✗ 라면 권한 문제입니다' : r.reason);
+  return {
+    html: row('anon key 유효성', r.ok,
+      r.ok ? '키는 정상입니다 — 아래가 ✗ 라면 권한 문제입니다' : r.reason),
+    // 키 자체가 거부된 경우에만 나머지를 건너뛴다.
+    // 권한 문제라면 아래 항목들이 어디가 막혔는지 알려 주므로 계속 봐야 한다.
+    skipRest: !r.ok && r.badKey === true,
+  };
 }
 
 async function runDiagnosis() {
   const diag = $('setup-diag');
   diag.innerHTML = '<li class="pending">확인 중…</li>';
 
-  const keyRow = await diagnoseKey();
-  // 키가 거부되면 나머지는 볼 필요가 없다. 전부 ✗ 로 도배돼 원인을 가린다.
-  if (keyRow.includes('class="bad"')) {
-    diag.innerHTML = keyRow +
+  const key = await diagnoseKey();
+  if (key.skipRest) {
+    diag.innerHTML = key.html +
       '<li class="pending">키가 거부되어 나머지 검사는 건너뜁니다. ' +
       '키를 고친 뒤 다시 눌러 주세요.</li>';
     return;
@@ -150,7 +154,7 @@ async function runDiagnosis() {
     diagnoseTable(DAYS_TABLE, DAYS_COL),
     diagnoseDayKeys(),
   ]);
-  diag.innerHTML = keyRow + parts.filter(Boolean).join('')
+  diag.innerHTML = key.html + parts.filter(Boolean).join('')
     + '<li class="pending">RPC 가 ✓ 면 테이블이 ✗ 여도 앱은 정상 동작합니다.</li>';
 }
 

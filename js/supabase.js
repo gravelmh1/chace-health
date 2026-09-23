@@ -9,7 +9,9 @@
 // 이게 없으면 iOS Safari 가 이전 응답을 재사용해서, DB 에 새 데이터가 들어와도
 // 앱은 계속 옛날 숫자를 보여준다.
 
-import { SUPABASE_URL } from './config.js';
+import {
+  SUPABASE_URL, SYNC_PULL_FNS, METRICS_TABLE, METRICS_COL,
+} from './config.js';
 import { getAnonKey } from './settings.js';
 
 /** PostgREST 오류를 사람이 읽고 바로 고칠 수 있는 문장으로 바꾼다. */
@@ -137,29 +139,60 @@ export async function selectOne(table, params) {
 }
 
 /**
- * anon key 자체가 유효한지만 확인한다.
+ * 키가 쓸 수 있는 것인지 확인한다.
  *
- * PostgREST 루트는 키가 맞으면 200, 틀리면 401 을 준다. 테이블 권한과 무관하므로
- * "키가 틀렸다" 와 "권한이 없다" 를 확실히 가를 수 있다.
+ * 예전에는 PostgREST 루트(/rest/v1/)로 확인했는데, 그 주소는 anon 에게 열려
+ * 있지 않을 수 있다. 그러면 키가 멀쩡해도 401 이 나고, 그 하나 때문에 모든
+ * 검사와 조회가 "키가 거부되었습니다" 로 막힌다.
+ *
+ * 그래서 앱이 실제로 쓰는 경로로 확인한다. 어느 하나라도 200 이면 키는 쓸 수 있다.
+ * 전부 실패하더라도, 응답이 키 자체를 거부한 것인지 권한이 없는 것인지는 구분한다.
  */
 export async function checkKey() {
   const anonKey = getAnonKey();
   if (!anonKey) return { ok: false, reason: '키가 입력되지 않았습니다.' };
 
-  try {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/`, {
-      method: 'GET',
-      cache: 'no-store',
-      headers: authHeaders(anonKey),
-    });
-    if (res.ok) return { ok: true };
-    if (res.status === 401 || res.status === 403) {
-      return { ok: false, reason: `키가 거부되었습니다 (HTTP ${res.status}). 오타이거나 잘린 값일 수 있습니다.` };
+  const probes = [
+    // 앱이 실제로 읽는 통로
+    ...SYNC_PULL_FNS.map((fn) => ({
+      url: `${SUPABASE_URL}/rest/v1/rpc/${fn}`,
+      init: { method: 'POST', body: '{}', headers: { 'Content-Type': 'application/json' } },
+    })),
+    // 테이블 한 줄 (RLS 로 막혀 있어도 키가 맞으면 200 + 빈 배열이 온다)
+    { url: `${SUPABASE_URL}/rest/v1/${METRICS_TABLE}?select=${METRICS_COL.recordedAt}&limit=1`, init: { method: 'GET' } },
+  ];
+
+  let sawKeyRejection = false;
+  let lastReason = '';
+
+  for (const probe of probes) {
+    try {
+      const res = await fetch(probe.url, {
+        ...probe.init,
+        cache: 'no-store',
+        headers: { ...authHeaders(anonKey), Accept: 'application/json', ...(probe.init.headers || {}) },
+      });
+      if (res.ok) return { ok: true };
+
+      let body = null;
+      try { body = await res.json(); } catch { /* 상태코드로 판정 */ }
+      const msg = body?.message || '';
+      if (/invalid|jwt|api key|malformed/i.test(msg) || body?.code === 'PGRST301') {
+        sawKeyRejection = true;
+      }
+      lastReason = `HTTP ${res.status}${msg ? ` — ${msg}` : ''}`;
+    } catch (e) {
+      lastReason = `네트워크 오류: ${e.message}`;
     }
-    return { ok: false, reason: `HTTP ${res.status}` };
-  } catch (e) {
-    return { ok: false, reason: `네트워크 오류: ${e.message}` };
   }
+
+  return {
+    ok: false,
+    badKey: sawKeyRejection,
+    reason: sawKeyRejection
+      ? `키가 거부되었습니다. 오타이거나 잘린 값일 수 있습니다. (${lastReason})`
+      : `키는 받아들여졌지만 읽을 수 있는 것이 없습니다. 권한이나 RLS 문제로 보입니다. (${lastReason})`,
+  };
 }
 
 /**
