@@ -8,6 +8,7 @@
 //       보내 어느 것이 통과하는지 본다. 맞는 하나만 남는다.
 
 import { SUPABASE_URL } from './config.js';
+import { authHeaders } from './supabase.js';
 
 // 실제로 눈으로 구분이 안 되는 것만 넣는다. 넓힐수록 조합이 폭증해서
 // 정작 흔한 실수를 못 잡고 한도에 걸린다.
@@ -70,7 +71,7 @@ async function keyWorks(key, signal) {
       method: 'GET',
       cache: 'no-store',
       signal,
-      headers: { apikey: key, Authorization: `Bearer ${key}` },
+      headers: authHeaders(key),
     });
     return res.ok;
   } catch {

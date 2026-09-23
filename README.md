@@ -31,6 +31,11 @@ https://gravelmh1.github.io/chace-health/#key=sb_publishable_xxxx
 형식이 정해진 앞부분(`sb_publishable_`)은 건드리지 않고, 조합이 너무 많으면
 포기합니다 — 긴 JWT 는 자동 교정 대상이 아닙니다.
 
+**인증 헤더**: `apikey` 는 항상 보내고, `Authorization: Bearer` 는 키가 JWT 일 때만
+보냅니다. 새 형식(`sb_publishable_…`)은 JWT 가 아니라서 Bearer 로 함께 보내면
+서버가 그것을 토큰으로 파싱하려다 실패해 401 을 돌려줍니다 —
+키는 멀쩡한데 "키가 거부되었습니다" 가 뜨는 원인이 이것이었습니다.
+
 > **service_role 키는 넣을 수 없습니다.** 입력해도 저장이 거부됩니다.
 > RLS 를 무시하는 전권 키라 브라우저에 두면 DB 전체가 열립니다.
 > anon 키는 브라우저 노출을 전제로 만들어진 공개 키이고, 실제 접근 통제는 RLS 가 합니다.

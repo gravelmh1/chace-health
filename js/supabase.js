@@ -72,6 +72,20 @@ function explain(status, body, table) {
   );
 }
 
+/**
+ * 인증 헤더.
+ *
+ * apikey 는 항상 보낸다. Authorization: Bearer 는 키가 JWT 일 때만 보낸다.
+ * 새 형식(sb_publishable_...)은 JWT 가 아니라서, Bearer 로 같이 보내면
+ * 서버가 그것을 토큰으로 파싱하려다 실패해 401 을 돌려준다.
+ * 키는 멀쩡한데 "키가 거부되었습니다" 가 뜨는 원인이 이것이다.
+ */
+export function authHeaders(key) {
+  const headers = { apikey: key };
+  if (/^[\w-]+\.[\w-]+\.[\w-]+$/.test(key)) headers.Authorization = `Bearer ${key}`;
+  return headers;
+}
+
 export function isConfigured() {
   return !!getAnonKey();
 }
@@ -97,8 +111,7 @@ export async function selectRows(table, params) {
       method: 'GET',
       cache: 'no-store',
       headers: {
-        apikey: anonKey,
-        Authorization: `Bearer ${anonKey}`,
+        ...authHeaders(anonKey),
         Accept: 'application/json',
         'Cache-Control': 'no-cache',
       },
@@ -137,7 +150,7 @@ export async function checkKey() {
     const res = await fetch(`${SUPABASE_URL}/rest/v1/`, {
       method: 'GET',
       cache: 'no-store',
-      headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}` },
+      headers: authHeaders(anonKey),
     });
     if (res.ok) return { ok: true };
     if (res.status === 401 || res.status === 403) {
@@ -166,8 +179,7 @@ export async function callRpc(fn, args = {}) {
       method: 'POST',
       cache: 'no-store',
       headers: {
-        apikey: anonKey,
-        Authorization: `Bearer ${anonKey}`,
+        ...authHeaders(anonKey),
         'Content-Type': 'application/json',
         Accept: 'application/json',
         'Cache-Control': 'no-cache',

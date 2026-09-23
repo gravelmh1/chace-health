@@ -7,12 +7,13 @@
   "scripts": {
     "test": "node tests/verify.mjs",
     "test:setup": "node tests/verify-setup.mjs",
-    "test:all": "npm test && NOW=2026-09-18T03:00:00Z SHOT=tests/screenshot-evening.png npm test && npm run test:rpc && npm run test:setup && npm run test:update && npm run test:keylink && npm run test:keyrepair",
+    "test:all": "npm test && NOW=2026-09-18T03:00:00Z SHOT=tests/screenshot-evening.png npm test && npm run test:rpc && npm run test:setup && npm run test:update && npm run test:keylink && npm run test:keyrepair && npm run test:auth",
     "dev": "node tests/serve.mjs",
     "test:rpc": "node tests/verify-rpc.mjs",
     "test:update": "node tests/verify-update.mjs",
     "test:keylink": "node tests/verify-keylink.mjs",
-    "test:keyrepair": "node tests/verify-keyrepair.mjs"
+    "test:keyrepair": "node tests/verify-keyrepair.mjs",
+    "test:auth": "node tests/verify-authheader.mjs"
   },
   "devDependencies": {
     "playwright": "^1.50.1"
