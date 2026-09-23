@@ -61,23 +61,25 @@ export const SOURCE = {
 };
 
 // ---------------------------------------------------------------------------
-// 카드 클릭 → 외부 앱 열기
+// 카드 클릭 → 해당 앱 열기
 //
-// 기본은 "아무것도 하지 않음" 이다.
+// 폴백은 두지 않는다. 앱이 안 열렸을 때 App Store 검색이나 애플 홈페이지로
+// 보내면 엉뚱한 곳이 열린다. 안 열리면 아무 일도 일어나지 않는 편이 낫다.
 //
-// renpho:// 와 x-apple-health:// 를 추측으로 넣어 봤지만, 실기기에서 앱이 열리지
-// 않고 엉뚱한 곳으로 가는 결과만 나왔다. 검증되지 않은 스킴을 던지는 것보다
-// 아무 일도 일어나지 않는 편이 낫다. App Store 검색 페이지로 보내는 폴백도
-// 원하는 동작이 아니라서 없앴다.
+// direct: true 는 최상위 문서를 스킴으로 이동시킨다. 앱이 없으면 Safari 가
+// "address is invalid" 를 띄우므로, 기기에 반드시 있는 앱에만 쓴다.
+// 건강 앱은 아이폰에 항상 설치돼 있다.
 //
-// 실기기에서 확실히 동작하는 스킴이 확인되면 그때 여기에 넣으면 된다.
-// 값이 있을 때만 카드가 눌리는 상태가 되고, 스킴은 숨김 iframe 으로만 시도한다.
+// direct: false 는 숨김 iframe 으로만 던진다. 앱이 없어도 오류창이 뜨지 않는다.
+// 설치 여부를 알 수 없는 앱은 이쪽을 쓴다.
 // ---------------------------------------------------------------------------
-export const RENPHO_APP_SCHEME = null;
-export const RENPHO_FALLBACK_URL = null;
-
-export const APPLE_HEALTH_SCHEME = null;
+export const APPLE_HEALTH_SCHEME = 'x-apple-health://';
+export const APPLE_HEALTH_DIRECT = true;   // 건강 앱은 항상 설치돼 있다
 export const APPLE_HEALTH_FALLBACK_URL = null;
+
+export const RENPHO_APP_SCHEME = 'renpho://';
+export const RENPHO_DIRECT = false;        // 설치 여부를 알 수 없다
+export const RENPHO_FALLBACK_URL = null;
 
 // ---------------------------------------------------------------------------
 // 약 / 운동 기록

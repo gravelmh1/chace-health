@@ -67,7 +67,7 @@ await ctx.route('**/rest/v1/**', (route) => {
   });
 });
 
-const page = await ctx.newPage();
+let page = await ctx.newPage();
 await page.addInitScript(`{
   const FIXED = ${NOW.getTime()};
   const RealDate = Date;
@@ -264,12 +264,22 @@ await page.route('**/*', (route) => {
   }
   return route.continue();
 });
-// 폴백 이동이 문서를 떠나게 하므로, 카드마다 새로 로드한 뒤 누른다.
+// 카드 탭은 문서를 떠나게 한다(커스텀 스킴으로의 최상위 이동 포함).
+// 그러면 그 탭의 상태가 망가져 다음 클릭에 영향을 주므로, 카드마다 새 탭에서 누른다.
 async function clickCard(id) {
+  const prev = page;
+  page = await ctx.newPage();
+  if (prev !== page) await prev.close().catch(() => {});
   await page.goto(`${base}/index.html`);
   await page.waitForSelector(`#${id}`, { timeout: 15000 });
   await page.waitForTimeout(400);
   topNav = null; frameNav = [];
+  // 커스텀 스킴 이동은 브라우저 계층에서 관측되지 않는다.
+  // 앱이 무엇을 열려고 했는지는 chace:open-app 이벤트로 확인한다.
+  await page.evaluate(() => {
+    window.__opened = [];
+    document.addEventListener('chace:open-app', (e) => window.__opened.push(e.detail));
+  });
   await page.click(`#${id}`);
 
   // 커스텀 스킴 이동은 네트워크 스택을 거치지 않아 route 에 잡히지 않는다.
@@ -279,31 +289,44 @@ async function clickCard(id) {
     [...document.querySelectorAll('iframe')].map((f) => f.getAttribute('src')));
 
   await page.waitForTimeout(1900); // 폴백까지
-  return { top: topNav, frames: [...frameNav], schemeSrc };
+  const opened = await page.evaluate(() => window.__opened ?? []);
+  return { top: topNav, frames: [...frameNav], schemeSrc, opened };
 }
 
-// 카드 탭: 검증된 스킴이 없으므로 아무 데도 가지 않아야 한다.
-// 예전에는 App Store 검색이나 애플 홈페이지로 보내서 엉뚱한 곳이 열렸다.
-for (const [id, label] of [['renpho-card', 'RENPHO'], ['apple-card', 'Apple 건강']]) {
-  const nav = await clickCard(id);
-  checks.push([`${label} 클릭 → 아무 데도 가지 않음 (${nav.top ?? '이동 없음'})`, nav.top === null]);
-  checks.push([
-    `${label}: 앱 스킴도 시도하지 않음 (${nav.schemeSrc.join(',') || '없음'})`,
-    nav.schemeSrc.length === 0,
-  ]);
+// 카드 탭: 앱 스킴으로만 가고, https 로 새지 않아야 한다.
+// 예전에는 앱이 안 열리면 App Store 검색이나 애플 홈페이지가 열렸다.
+
+// Apple 건강: 항상 설치된 앱이므로 최상위 문서를 스킴으로 이동시킨다.
+{
+  const nav = await clickCard('apple-card');
+  const o = nav.opened[0];
+  checks.push([`Apple 건강 → 건강 앱 스킴 (${o?.scheme ?? '시도 없음'})`,
+    o?.scheme === 'x-apple-health://']);
+  checks.push(['Apple 건강: 폴백 없음 (엉뚱한 곳으로 안 감)', o?.fallback === null]);
+  checks.push(['Apple 건강: 최상위로 직접 이동 (항상 설치된 앱)', o?.direct === true]);
+  checks.push(['Apple 건강: https 로 새지 않음', !nav.top || !nav.top.startsWith('http')]);
 }
 
-// 눌리는 것처럼 보이지도 않아야 한다
+// RENPHO: 설치 여부를 알 수 없으므로 iframe 으로만 시도한다 (오류창 방지).
+{
+  const nav = await clickCard('renpho-card');
+  const o = nav.opened[0];
+  checks.push([`RENPHO → 앱 스킴 (${o?.scheme ?? '시도 없음'})`, o?.scheme === 'renpho://']);
+  checks.push(['RENPHO: 폴백 없음 (App Store 로 안 감)', o?.fallback === null]);
+  checks.push([`RENPHO: iframe 으로만 시도 (${nav.schemeSrc.join(',') || '없음'})`,
+    o?.direct === false && nav.schemeSrc.includes('renpho://')]);
+  checks.push([`RENPHO: 최상위는 이동하지 않음 (${nav.top ?? '이동 없음'})`, nav.top === null]);
+}
+
+// 스킴이 설정돼 있으므로 두 카드 모두 누를 수 있어야 한다
 await page.goto(`${base}/index.html`);
 await page.waitForSelector('#renpho-card', { timeout: 15000 });
 const tapAttrs = await page.evaluate(() => ['renpho-card', 'apple-card'].map((id) => {
   const el = document.getElementById(id);
-  return { id, role: el.getAttribute('role'), noTap: el.classList.contains('no-tap') };
+  return { role: el.getAttribute('role'), noTap: el.classList.contains('no-tap') };
 }));
-checks.push([
-  '카드가 버튼처럼 보이지 않음',
-  tapAttrs.every((a) => a.role === null && a.noTap),
-]);
+checks.push(['두 카드 모두 누를 수 있는 상태',
+  tapAttrs.every((a) => a.role === 'button' && !a.noTap)]);
 
 console.log('\n=== 앱이 보낸 쿼리 ===');
 for (const r of requests) console.log('  ' + decodeURIComponent(r));
