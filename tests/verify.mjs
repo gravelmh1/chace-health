@@ -282,31 +282,28 @@ async function clickCard(id) {
   return { top: topNav, frames: [...frameNav], schemeSrc };
 }
 
-// RENPHO: 앱이 없을 수 있으므로 App Store 로 폴백한다.
-// Apple 건강: 아이폰에 항상 있으므로 폴백하지 않는다 — 엉뚱한 페이지로 보내지 않는다.
-for (const [id, label, expectFallback] of [
-  ['renpho-card', 'RENPHO', true],
-  ['apple-card', 'Apple 건강', false],
-]) {
+// 카드 탭: 검증된 스킴이 없으므로 아무 데도 가지 않아야 한다.
+// 예전에는 App Store 검색이나 애플 홈페이지로 보내서 엉뚱한 곳이 열렸다.
+for (const [id, label] of [['renpho-card', 'RENPHO'], ['apple-card', 'Apple 건강']]) {
   const nav = await clickCard(id);
-
-  if (expectFallback) {
-    let navOk = false;
-    try { navOk = !!nav.top && !!new URL(nav.top) && nav.top.startsWith('https://'); } catch { navOk = false; }
-    checks.push([`${label} 클릭 → https 폴백 (${nav.top ?? '이동 없음'})`, navOk]);
-  } else {
-    checks.push([`${label} 클릭 → 폴백 이동 없음 (${nav.top ?? '이동 없음'})`, nav.top === null]);
-  }
-
+  checks.push([`${label} 클릭 → 아무 데도 가지 않음 (${nav.top ?? '이동 없음'})`, nav.top === null]);
   checks.push([
-    `${label}: 최상위가 커스텀 스킴으로 가지 않음 (Safari 오류 방지)`,
-    !nav.top || nav.top.startsWith('http'),
-  ]);
-  checks.push([
-    `${label}: 앱 스킴을 iframe 으로 시도 (${nav.schemeSrc.join(',') || '없음'})`,
-    nav.schemeSrc.some((u) => u && !u.startsWith('http')),
+    `${label}: 앱 스킴도 시도하지 않음 (${nav.schemeSrc.join(',') || '없음'})`,
+    nav.schemeSrc.length === 0,
   ]);
 }
+
+// 눌리는 것처럼 보이지도 않아야 한다
+await page.goto(`${base}/index.html`);
+await page.waitForSelector('#renpho-card', { timeout: 15000 });
+const tapAttrs = await page.evaluate(() => ['renpho-card', 'apple-card'].map((id) => {
+  const el = document.getElementById(id);
+  return { id, role: el.getAttribute('role'), noTap: el.classList.contains('no-tap') };
+}));
+checks.push([
+  '카드가 버튼처럼 보이지 않음',
+  tapAttrs.every((a) => a.role === null && a.noTap),
+]);
 
 console.log('\n=== 앱이 보낸 쿼리 ===');
 for (const r of requests) console.log('  ' + decodeURIComponent(r));

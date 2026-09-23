@@ -14,7 +14,9 @@ import { openSetup, initSetup } from './setup.js';
 import {
   formatSyncTime, metricTime, syncTime, laToday, shiftDate, shortLabel,
 } from './time.js';
-import { openRenpho, openAppleHealth } from './open-renpho.js';
+import {
+  openRenpho, openAppleHealth, canOpenRenpho, canOpenAppleHealth,
+} from './open-renpho.js';
 import { buildWeekGrid, gridRange, fetchCalendarEvents } from './calendar.js';
 import { renderChart, renderLegend } from './chart.js';
 import {
@@ -378,6 +380,17 @@ function renderChartCard() {
 
 // --- 초기화 -------------------------------------------------------------------
 
+function setupCardTap(id, enabled, handler) {
+  const el = $(id);
+  if (enabled) {
+    el.addEventListener('click', handler);
+    return;
+  }
+  el.removeAttribute('role');
+  el.removeAttribute('tabindex');
+  el.classList.add('no-tap');
+}
+
 function renderAllLocal() {
   renderCalendar();
   renderEntry();
@@ -400,8 +413,10 @@ export function init() {
 
   $('refresh-btn').addEventListener('click', () => { refresh(); renderAllLocal(); });
   $('setup-btn').addEventListener('click', openSetup);
-  $('renpho-card').addEventListener('click', openRenpho);
-  $('apple-card').addEventListener('click', openAppleHealth);
+  // 열 대상이 설정돼 있을 때만 카드를 누를 수 있게 한다.
+  // 그렇지 않으면 눌러도 아무 일이 없으므로, 눌리는 것처럼 보이지 않게 둔다.
+  setupCardTap('renpho-card', canOpenRenpho(), openRenpho);
+  setupCardTap('apple-card', canOpenAppleHealth(), openAppleHealth);
   $('cal-today').addEventListener('click', () => {
     selectedDate = laToday();
     anchorDate = laToday();

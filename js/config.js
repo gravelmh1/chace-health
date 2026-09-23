@@ -61,34 +61,22 @@ export const SOURCE = {
 };
 
 // ---------------------------------------------------------------------------
-// RENPHO 카드 클릭 동작
+// 카드 클릭 → 외부 앱 열기
 //
-// 검증되지 않은 커스텀 스킴(renpho:// 등)을 그대로 실행하면 iOS Safari 가
-// "Safari cannot open the page because the address is invalid" 를 띄웁니다.
-// 그래서 기본값은 "스킴 시도 안 함" 입니다. 반드시 동작하는 https 링크만 엽니다.
+// 기본은 "아무것도 하지 않음" 이다.
 //
-// 실기기에서 동작이 검증된 스킴이 있다면 그때 아래 값을 채우세요.
-// 값이 있을 때만 "스킴 먼저 시도 → 실패하면 https 폴백" 경로가 켜집니다.
+// renpho:// 와 x-apple-health:// 를 추측으로 넣어 봤지만, 실기기에서 앱이 열리지
+// 않고 엉뚱한 곳으로 가는 결과만 나왔다. 검증되지 않은 스킴을 던지는 것보다
+// 아무 일도 일어나지 않는 편이 낫다. App Store 검색 페이지로 보내는 폴백도
+// 원하는 동작이 아니라서 없앴다.
+//
+// 실기기에서 확실히 동작하는 스킴이 확인되면 그때 여기에 넣으면 된다.
+// 값이 있을 때만 카드가 눌리는 상태가 되고, 스킴은 숨김 iframe 으로만 시도한다.
 // ---------------------------------------------------------------------------
-// 원래 의도는 App Store 가 아니라 RENPHO 앱을 직접 여는 것이다.
-// 이 스킴은 실기기에서 검증되지 않았지만, open-renpho.js 가 숨김 iframe 으로
-// 던지기 때문에 스킴이 틀려도 Safari 오류 페이지가 뜨지 않는다.
-// (location 을 직접 바꾸면 "address is invalid" 가 뜬다 — 그래서 안 그런다)
-// 앱으로 전환되지 않으면 아래 https 주소로 폴백한다.
-export const RENPHO_APP_SCHEME = 'renpho://';
+export const RENPHO_APP_SCHEME = null;
+export const RENPHO_FALLBACK_URL = null;
 
-// 항상 유효한 https 폴백. 앱이 설치돼 있으면 iOS 가 이 링크에서 앱으로 전환해 주고,
-// 없으면 설치 페이지가 열린다. 어느 쪽이든 오류창은 없다.
-export const RENPHO_FALLBACK_URL = 'https://apps.apple.com/us/search?term=RENPHO%20Health';
-
-// Apple 건강 카드 클릭 → 건강 앱 열기.
-// x-apple-health:// 는 공식 문서에 없지만 아이폰에서 널리 쓰이는 스킴이다.
-// 숨김 iframe 으로 던지므로 틀려도 Safari 오류창이 뜨지 않는다.
-export const APPLE_HEALTH_SCHEME = 'x-apple-health://';
-
-// 폴백 없음(null). 건강 앱은 아이폰에 항상 설치돼 있으므로 설치 페이지가 필요 없고,
-// 안 열렸다고 애플 홈페이지 같은 엉뚱한 곳으로 보내면 더 나쁘다.
-// 열리지 않으면 아무 일도 일어나지 않는 편이 낫다.
+export const APPLE_HEALTH_SCHEME = null;
 export const APPLE_HEALTH_FALLBACK_URL = null;
 
 // ---------------------------------------------------------------------------
