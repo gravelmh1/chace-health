@@ -47,9 +47,17 @@ function explain(status, body, table) {
   }
 
   if (status === 401 || status === 403) {
+    // 키 자체가 거부된 것과, 키는 맞지만 권한이 없는 것을 구분한다.
+    // 둘을 뭉뚱그리면 키 오타를 RLS 문제로 오해하게 된다.
+    if (/invalid|jwt|api key|malformed/i.test(msg) || code === 'PGRST301') {
+      return new QueryError(
+        'anon key 가 거부되었습니다. 키를 다시 확인하세요 (오타나 잘린 값일 수 있습니다).',
+        { status, code, table, badKey: true },
+      );
+    }
     return new QueryError(
-      `'${table}' 을(를) anon 키로 읽을 수 없습니다. RLS 정책이 막고 있을 가능성이 큽니다. ` +
-      '테이블에 anon SELECT 정책을 추가하거나, health_sync_pull() 같은 SECURITY DEFINER 함수를 통해 읽도록 하세요.',
+      `'${table}' 에 대한 권한이 없습니다. anon 에게 SELECT/EXECUTE 권한이 있는지, ` +
+      'RLS 정책이 막고 있지는 않은지 확인하세요.',
       { status, code, table },
     );
   }
@@ -113,6 +121,32 @@ export async function selectRows(table, params) {
 export async function selectOne(table, params) {
   const rows = await selectRows(table, { ...params, limit: '1' });
   return rows[0] ?? null;
+}
+
+/**
+ * anon key 자체가 유효한지만 확인한다.
+ *
+ * PostgREST 루트는 키가 맞으면 200, 틀리면 401 을 준다. 테이블 권한과 무관하므로
+ * "키가 틀렸다" 와 "권한이 없다" 를 확실히 가를 수 있다.
+ */
+export async function checkKey() {
+  const anonKey = getAnonKey();
+  if (!anonKey) return { ok: false, reason: '키가 입력되지 않았습니다.' };
+
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/`, {
+      method: 'GET',
+      cache: 'no-store',
+      headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}` },
+    });
+    if (res.ok) return { ok: true };
+    if (res.status === 401 || res.status === 403) {
+      return { ok: false, reason: `키가 거부되었습니다 (HTTP ${res.status}). 오타이거나 잘린 값일 수 있습니다.` };
+    }
+    return { ok: false, reason: `HTTP ${res.status}` };
+  } catch (e) {
+    return { ok: false, reason: `네트워크 오류: ${e.message}` };
+  }
 }
 
 /**

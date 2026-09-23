@@ -122,6 +122,33 @@ checks.push([
   (await page.textContent('#renpho-weight')).trim() === '78.3',
 ]);
 
+// 3-2) 키가 거부되면(401) 진단이 그 사실만 알리고 나머지는 건너뛴다.
+//      예전에는 모든 항목이 "RLS 때문일 수 있음"으로 도배돼 원인을 가렸다.
+await ctx.unroute('**/rest/v1/**');
+await ctx.route('**/rest/v1/**', (route) => route.fulfill({
+  status: 401, contentType: 'application/json',
+  body: JSON.stringify({ message: 'Invalid API key' }),
+}));
+await page.fill('#setup-key', 'sb_publishable_WRONGKEY0000000');
+await page.click('#setup-save');
+await page.waitForTimeout(900);
+const badDiag = await page.textContent('#setup-diag');
+checks.push(['틀린 키 → 키 문제라고 알림', badDiag.includes('거부')]);
+checks.push(['틀린 키 → RLS 탓으로 돌리지 않음', !badDiag.includes('RLS')]);
+checks.push(['틀린 키 → 나머지 검사 건너뜀', !badDiag.includes('health_external_metrics')]);
+
+// 원래 목으로 되돌린다
+await ctx.unroute('**/rest/v1/**');
+await ctx.route('**/rest/v1/**', (route) => {
+  const url = new URL(route.request().url());
+  sentKeys.push(route.request().headers()['apikey']);
+  const table = url.pathname.split('/').pop();
+  route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify(query(table === 'health_calendar_events' ? CAL_ROWS : ROWS, url.searchParams)),
+  });
+});
+
 // 4) 정상 anon 키는 저장되고 데이터가 바로 뜬다
 const anonKey = `x.${b64url({ role: 'anon' })}.y`;
 await page.fill('#setup-key', anonKey);
