@@ -23,6 +23,7 @@ import {
   MEDICATIONS, EXERCISES,
 } from './tracker.js';
 import { CHART_DAYS } from './config.js';
+import { APP_VERSION, checkForUpdate } from './version.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -383,12 +384,17 @@ export function init() {
 
   const setupOpen = () => !$('setup').hidden || !$('evt-sheet').hidden;
   document.addEventListener('visibilitychange', () => {
-    if (!document.hidden && !setupOpen()) refresh();
+    if (document.hidden || setupOpen()) return;
+    // 돌아올 때마다 새 배포가 있는지 먼저 본다. 있으면 페이지가 새로 뜬다.
+    checkForUpdate().then((r) => { if (!r.reloading) refresh(); });
   });
   window.addEventListener('pageshow', (e) => {
     if (e.persisted && !setupOpen()) refresh(); // bfcache 복원
   });
 
-  refresh();
+  checkForUpdate().then((r) => {
+    if (r.reloading) return; // 새 버전으로 이동 중이면 여기서 멈춘다
+    refresh();
+  });
   renderAllLocal();
 }

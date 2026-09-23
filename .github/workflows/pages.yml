@@ -63,9 +63,16 @@ jobs:
           sed -i -E "s|(href=\"app\.css)\"|\1?v=$V\"|" _site/index.html
           sed -i -E "s|(from '\./js/ui\.js)'|\1?v=$V'|" _site/index.html
           sed -i -E "s|(from '\.\./js/[^']+\.js)'|\1?v=$V'|g" _site/tools/*.html
+          # 페이지가 스스로 새 버전을 감지할 수 있게 남긴다.
+          # index.html 자체가 캐시돼도, 이 파일을 매번 새 주소로 읽어 비교한다.
+          printf '{"v":"%s"}\n' "$V" > _site/version.json
+          sed -i -E "s|window\.__APP_VERSION__ = \"dev\"|window.__APP_VERSION__ = \"$V\"|" _site/index.html
+          sed -i -E "s|(from '\./version\.js)'|\1?v=$V'|g" _site/js/*.js
+
           echo "버전 $V 적용:"
+          cat _site/version.json
+          grep -o "__APP_VERSION__ = \"[a-f0-9]*\"" _site/index.html | head -1
           grep -o "ui\.js?v=[a-f0-9]*" _site/index.html | head -1
-          grep -o "config\.js?v=[a-f0-9]*" _site/js/ui.js | head -1
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site

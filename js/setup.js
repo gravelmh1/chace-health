@@ -13,6 +13,7 @@ import {
 } from './config.js';
 
 import { unpackSyncPull } from './select.js';
+import { APP_VERSION } from './version.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -23,6 +24,7 @@ export function openSetup() {
   const duta = getDutaSchedule();
   $('setup-duta-interval').value = duta.intervalDays;
   $('setup-duta-anchor').value = duta.anchor;
+  $('setup-version').textContent = `버전 ${APP_VERSION}`;
   $('setup-msg').textContent = '';
   $('setup-msg').className = 'setup-msg';
   $('setup-diag').innerHTML = '';

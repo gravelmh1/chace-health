@@ -23,6 +23,8 @@ jobs:
         run: npm run test:rpc
       - name: 설정 화면 검증
         run: npm run test:setup
+      - name: 자동 업데이트 검증
+        run: npm run test:update
       - uses: actions/upload-artifact@v4
         if: always()
         with:

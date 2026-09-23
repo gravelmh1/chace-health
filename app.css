@@ -323,3 +323,5 @@ h1 {
 
 .apple { cursor: pointer; }
 .apple:active { filter: brightness(1.06); }
+
+.ver { margin: 12px 0 0; font-size: 11px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
