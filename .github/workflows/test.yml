@@ -37,6 +37,8 @@ jobs:
         run: npm run test:latekey
       - name: 오늘 데이터가 없는 날 검증
         run: npm run test:notoday
+      - name: 단축어 → DB → 앱 검증
+        run: npm run test:push
       - uses: actions/upload-artifact@v4
         if: always()
         with:

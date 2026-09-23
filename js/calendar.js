@@ -20,9 +20,10 @@ export async function fetchCalendarEvents(fromDate, toDate_) {
 
   // RLS 때문에 테이블 직접 조회가 막힌 환경에서도 동작하도록,
   // RPC 응답이 있으면 거기서 일정을 꺼내 쓴다.
+  // RPC 가 응답했다면 일정이 0건이어도 그게 답이다 (막힌 테이블로 다시 가지 않는다).
   const pulled = await pullSyncData();
-  if (pulled?.events?.length) {
-    return groupByDate(pulled.events.filter((r) => {
+  if (pulled) {
+    return groupByDate((pulled.events ?? []).filter((r) => {
       const d = laDateString(toDate(r[CC.startAt]) ?? 0);
       return d >= fromDate && d <= toDate_;
     }));

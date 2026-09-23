@@ -102,8 +102,10 @@ function ingestDays(rows) {
 export async function loadCloudDays() {
   try {
     const pulled = await pullSyncData();
-    if (pulled?.days?.length) {
-      cloudDays = ingestDays(pulled.days);
+    // RPC 가 응답했다면 기록이 0건이어도 그게 답이다.
+    // 비었다고 테이블로 다시 가면, RLS 에 막혀 멀쩡한 화면에 오류가 뜬다.
+    if (pulled) {
+      cloudDays = ingestDays(pulled.days ?? []);
       return { ok: true, via: 'rpc', count: Object.keys(cloudDays).length };
     }
   } catch { /* 아래 직접 조회로 넘어간다 */ }

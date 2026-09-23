@@ -103,6 +103,28 @@ PostgREST 루트(`/rest/v1/`)는 anon 에게 열려 있지 않을 수 있어, �
 
 `health_calendar_events` 기본값: `category = '운동'`, `source = 'google_calendar'`
 
+## 앱을 열 때마다 최신값 — iOS 단축어
+
+앱은 DB 의 최신값을 보여 줍니다. DB 로 넣어 주는 동기화(`ChatGPT Health sync`)가 가끔만
+돌면, 앱 숫자가 Apple 건강·RENPHO 앱과 어긋납니다. 웹앱은 Apple 건강을 직접 읽을 수 없습니다.
+
+iOS 단축어는 읽을 수 있으므로, **단축어가 읽어서 DB 에 넣고 앱을 여는** 흐름을 만듭니다.
+RENPHO 는 체중·체지방을 Apple 건강에 써 넣으므로 단축어 하나로 둘 다 됩니다.
+단축어를 홈 화면에 두면, 누를 때마다 방금 값으로 앱이 열립니다.
+
+- DB 쪽: `supabase/chace_health_push.sql` 을 SQL Editor 에서 한 번 실행
+- 폰 쪽: 단축어 한 번 만들기 (건강 샘플 찾기 6개 → URL 콘텐츠 가져오기 → URL 열기)
+
+`chace_health_push()` 는 **추가만** 합니다. 지우거나 고치지 않고, 같은 측정은 다시 넣지
+않습니다. 입력은 전부 text 로 받아 숫자를 뽑아냅니다 — 단축어가 `"78.2 kg"`, `"3,269"`,
+체지방 `0.132` 처럼 보내도 됩니다. 시간대 표시가 없는 시각(`Sep 23, 2026 at 1:10 PM`,
+`2026. 9. 23. 오후 1:10`)은 LA 기준으로 읽습니다 — 그냥 캐스팅하면 UTC 로 읽혀 7시간이
+어긋납니다.
+
+검증은 로컬 Postgres 에서 했습니다. 실제와 같은 스키마(RLS 켜짐, anon 역할)를 만들고,
+anon 으로 넣고 anon 으로 꺼낸 결과를 `tests/pulled-sample.json` 에 저장해
+`npm run test:push` 가 그 JSON 으로 화면을 확인합니다.
+
 ## 처음 한 번: 읽기 통로 만들기
 
 건강 테이블들은 RLS 가 켜져 있어 anon 키로는 직접 읽을 수 없습니다 (맞는 설정입니다).
