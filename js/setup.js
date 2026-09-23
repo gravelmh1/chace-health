@@ -14,6 +14,7 @@ import {
 
 import { unpackSyncPull } from './select.js';
 import { APP_VERSION } from './version.js';
+import { repairKey } from './key-repair.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -178,8 +179,33 @@ export function initSetup(onSaved) {
       return;
     }
 
-    msg.textContent = '저장했습니다.';
+    msg.textContent = '저장했습니다. 확인 중…';
     msg.className = 'setup-msg ok';
+
+    // 키가 거부되면, 눈으로 옮기다 틀린 글자를 자동으로 찾아본다.
+    // l/I/1, O/0 처럼 화면에서 구분이 안 되는 자리만 바꿔 가며 실제로 요청해 본다.
+    const probe = await checkKey();
+    if (!probe.ok) {
+      msg.textContent = '키가 거부되었습니다. 비슷한 글자를 바꿔 가며 찾는 중…';
+      msg.className = 'setup-msg';
+
+      const result = await repairKey(key, (done, total) => {
+        msg.textContent = `맞는 키를 찾는 중… ${done}/${total}`;
+      });
+
+      if (result.found) {
+        setAnonKey(result.found);
+        $('setup-key').value = result.found;
+        msg.textContent = `맞는 키를 찾았습니다 (${result.tried}번째 시도). 저장했습니다.`;
+        msg.className = 'setup-msg ok';
+      } else if (result.tooMany) {
+        msg.textContent = '키가 거부되었습니다. 이 키는 너무 길어 자동 교정을 할 수 없습니다.';
+        msg.className = 'setup-msg bad';
+      } else {
+        msg.textContent = `키가 거부되었습니다. ${result.total}가지를 시도했지만 맞는 것이 없습니다. 키를 다시 확인해 주세요.`;
+        msg.className = 'setup-msg bad';
+      }
+    }
 
     await runDiagnosis();
     onSaved?.();

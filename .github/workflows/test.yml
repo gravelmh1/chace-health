@@ -27,6 +27,8 @@ jobs:
         run: npm run test:update
       - name: 링크로 키 넣기 검증
         run: npm run test:keylink
+      - name: 키 자동 교정 검증
+        run: npm run test:keyrepair
       - uses: actions/upload-artifact@v4
         if: always()
         with:
