@@ -84,6 +84,16 @@ export const APPLE_HEALTH_FALLBACK_URL = null;
 // renpho:// 는 실기기에서 확인되지 않은 값이므로, 이 시도 자체가 확인 절차다.
 // 오류가 뜨면 이 스킴이 아니라는 뜻이니 값을 바꾸거나 null 로 끄면 된다.
 export const RENPHO_APP_SCHEME = 'renpho://';
+
+// 설정에서 눌러 볼 수 있는 후보들. 어느 것이 RENPHO 앱을 여는지 기기에서만 알 수 있다.
+export const RENPHO_SCHEME_CANDIDATES = [
+  'renpho://',
+  'renphohealth://',
+  'renpho-health://',
+  'renphofit://',
+  'qnhealth://',
+  'com.renpho.health://',
+];
 export const RENPHO_DIRECT = true;
 export const RENPHO_FALLBACK_URL = null;
 

@@ -9,10 +9,14 @@
 // 우선순위: localStorage → config.js 기본값
 // (config.js 에 넣는 방식도 그대로 동작한다. 정적 호스팅에 키를 박아두고 싶으면 그쪽을 쓰면 된다.)
 
-import { SUPABASE_ANON_KEY as CONFIG_KEY, PROFILE_ID as CONFIG_PROFILE } from './config.js';
+import {
+  SUPABASE_ANON_KEY as CONFIG_KEY, PROFILE_ID as CONFIG_PROFILE,
+  RENPHO_APP_SCHEME as CONFIG_RENPHO_SCHEME,
+} from './config.js';
 
 const KEY_ANON = 'chace:anonKey';
 const KEY_PROFILE = 'chace:profileId';
+const KEY_RENPHO = 'chace:renphoScheme';
 
 function read(k) {
   try {
@@ -104,4 +108,21 @@ export function inspectKey(value) {
   } catch {
     return { ok: true, role: null };
   }
+}
+
+// --- RENPHO 앱 주소 ----------------------------------------------------------
+// 어느 주소가 RENPHO 앱을 여는지는 기기에서만 알 수 있어, 앱에서 바꿀 수 있게 한다.
+// 값을 비우면 카드 탭이 꺼진다.
+
+export function getRenphoScheme() {
+  const stored = read(KEY_RENPHO);
+  if (stored) return stored;
+  return read(`${KEY_RENPHO}:cleared`) ? '' : (CONFIG_RENPHO_SCHEME ?? '');
+}
+
+export function setRenphoScheme(value) {
+  const v = (value || '').trim();
+  // 빈 값도 선택으로 취급한다. 그러지 않으면 config 기본값이 되살아난다.
+  write(`${KEY_RENPHO}:cleared`, v ? '' : '1');
+  return write(KEY_RENPHO, v);
 }

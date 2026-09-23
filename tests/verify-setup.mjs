@@ -177,6 +177,37 @@ checks.push(['새로고침 후 값 유지', (await page.textContent('#renpho-wei
 
 await page.screenshot({ path: 'tests/screenshot-setup.png', fullPage: true });
 
+// RENPHO 주소를 설정에서 바꿀 수 있어야 한다 (기기에서만 정답을 알 수 있으므로)
+await page.evaluate(() => document.getElementById('setup-btn').click());
+await page.waitForTimeout(300);
+const tries = await page.$$eval('#renpho-try .try', (els) => els.map((e) => e.textContent));
+checks.push([`후보 주소 목록 표시 (${tries.length}개)`, tries.length >= 4 && tries[0] === 'renpho://']);
+
+await page.fill('#setup-renpho', 'renphohealth://');
+await page.click('#setup-save');
+await page.waitForTimeout(900);
+checks.push(['바꾼 주소가 저장됨',
+  await page.evaluate(() => localStorage.getItem('chace:renphoScheme')) === 'renphohealth://']);
+
+// 실제로 열지는 않는다 — 여는 순간 페이지가 이동해 입력칸이 초기화된다.
+// 저장된 값을 쓰는지만 확인한다.
+const schemeState = await page.evaluate(async () => {
+  const st = await import('./js/settings.js');
+  const op = await import('./js/open-renpho.js');
+  return { scheme: st.getRenphoScheme(), canOpen: op.canOpenRenpho() };
+});
+checks.push([`저장한 주소를 씀 (${schemeState.scheme})`, schemeState.scheme === 'renphohealth://']);
+checks.push(['주소가 있으면 카드 탭이 켜짐', schemeState.canOpen === true]);
+
+// 비우면 카드 탭이 꺼져야 한다
+await page.fill('#setup-renpho', '');
+await page.click('#setup-save');
+await page.waitForTimeout(900);
+await page.reload();
+await page.waitForTimeout(900);
+checks.push(['주소를 비우면 카드 탭이 꺼짐',
+  await page.evaluate(() => document.getElementById('renpho-card').getAttribute('role')) === null]);
+
 console.log('\n=== 설정 화면 검증 ===');
 let failed = 0;
 for (const [name, ok] of checks) {

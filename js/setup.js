@@ -5,11 +5,15 @@
 // 실제 스키마와 맞는지 그 자리에서 보여준다.
 
 import { describeTable, callRpc, checkKey } from './supabase.js';
-import { getAnonKey, setAnonKey, inspectKey, getProfileId, setProfileId } from './settings.js';
+import {
+  getAnonKey, setAnonKey, inspectKey, getProfileId, setProfileId,
+  getRenphoScheme, setRenphoScheme,
+} from './settings.js';
 import { getDutaSchedule, setDutaSchedule } from './tracker.js';
 import {
   METRICS_TABLE, METRICS_COL, CALENDAR_TABLE, CALENDAR_COL,
   DAYS_TABLE, DAYS_COL, EXERCISES, MEDICATIONS, SYNC_PULL_FNS,
+  RENPHO_SCHEME_CANDIDATES,
 } from './config.js';
 
 import { unpackSyncPull } from './select.js';
@@ -25,6 +29,8 @@ export function openSetup() {
   const duta = getDutaSchedule();
   $('setup-duta-interval').value = duta.intervalDays;
   $('setup-duta-anchor').value = duta.anchor;
+  $('setup-renpho').value = getRenphoScheme();
+  renderSchemeTries();
   $('setup-version').textContent = `버전 ${APP_VERSION}`;
   $('setup-msg').textContent = '';
   $('setup-msg').className = 'setup-msg';
@@ -158,6 +164,24 @@ async function runDiagnosis() {
     + '<li class="pending">RPC 가 ✓ 면 테이블이 ✗ 여도 앱은 정상 동작합니다.</li>';
 }
 
+/** 후보 주소를 하나씩 눌러 볼 수 있게 한다. 열리는 것이 정답이다. */
+function renderSchemeTries() {
+  const box = $('renpho-try');
+  box.innerHTML = '';
+  for (const scheme of RENPHO_SCHEME_CANDIDATES) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'try';
+    btn.textContent = scheme;
+    btn.addEventListener('click', () => {
+      // 눌러 본 주소를 입력칸에 넣어 둔다. 앱이 열렸다면 그대로 저장하면 된다.
+      $('setup-renpho').value = scheme;
+      window.location.href = scheme;
+    });
+    box.appendChild(btn);
+  }
+}
+
 export function initSetup(onSaved) {
   $('setup-close').addEventListener('click', closeSetup);
   $('setup').addEventListener('click', (e) => {
@@ -176,6 +200,7 @@ export function initSetup(onSaved) {
     }
 
     setDutaSchedule($('setup-duta-interval').value, $('setup-duta-anchor').value);
+    setRenphoScheme($('setup-renpho').value);
     const stored = setAnonKey(key) && setProfileId($('setup-profile').value.trim());
     if (!stored) {
       msg.textContent = '⚠ 브라우저 저장소에 쓸 수 없습니다 (프라이빗 모드일 수 있습니다). js/config.js 에 직접 넣어주세요.';

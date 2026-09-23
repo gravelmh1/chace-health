@@ -203,8 +203,12 @@ Supabase REST 응답을 픽스처로 가로채되, 앱이 만든 쿼리 문자�
 `openExternalApp` 의 iframe 경로는 그대로 남아 있습니다 (`direct: false`).
 iframe 이 통하는 환경에서는 그쪽이 더 안전합니다.
 
-스킴을 바꾸려면 `js/config.js` 의 `APPLE_HEALTH_SCHEME` / `RENPHO_APP_SCHEME` 만
-고치면 됩니다. `null` 로 두면 그 카드는 눌리지 않는 상태가 됩니다.
+**RENPHO 주소는 앱 설정(⚙)에서 바꿉니다.** 어느 주소가 RENPHO 앱을 여는지는
+그 기기에서만 알 수 있기 때문입니다. 설정에 후보 목록이 있어 하나씩 눌러 볼 수 있고,
+앱이 열리는 것이 정답입니다. 저장한 값이 `js/config.js` 기본값보다 우선합니다.
+비워 두면 카드 탭이 꺼집니다.
+
+Apple 건강 스킴은 `js/config.js` 의 `APPLE_HEALTH_SCHEME` 에서 바꿉니다.
 
 무엇을 열려고 했는지는 `chace:open-app` 이벤트로 나갑니다 — 커스텀 스킴 이동은
 브라우저 계층에서 관측되지 않아, 동작을 확인할 수 있는 유일한 지점입니다.

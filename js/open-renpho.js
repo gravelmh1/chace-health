@@ -4,15 +4,16 @@
 // 설정에 스킴이 없으면 카드는 눌리지 않는 상태로 둔다.
 
 import {
-  RENPHO_APP_SCHEME, RENPHO_FALLBACK_URL, RENPHO_DIRECT,
+  RENPHO_FALLBACK_URL, RENPHO_DIRECT,
   APPLE_HEALTH_SCHEME, APPLE_HEALTH_FALLBACK_URL, APPLE_HEALTH_DIRECT,
 } from './config.js';
+import { getRenphoScheme } from './settings.js';
 import { openExternalApp, isValidUrl } from './open-app.js';
 
 export { isValidUrl } from './open-app.js';
 
 export function canOpenRenpho() {
-  return isValidUrl(RENPHO_APP_SCHEME) || isValidUrl(RENPHO_FALLBACK_URL);
+  return isValidUrl(getRenphoScheme()) || isValidUrl(RENPHO_FALLBACK_URL);
 }
 
 export function canOpenAppleHealth() {
@@ -21,7 +22,7 @@ export function canOpenAppleHealth() {
 
 export function openRenpho() {
   if (canOpenRenpho()) {
-    openExternalApp(RENPHO_APP_SCHEME, RENPHO_FALLBACK_URL, RENPHO_DIRECT);
+    openExternalApp(getRenphoScheme(), RENPHO_FALLBACK_URL, RENPHO_DIRECT);
   }
 }
 

@@ -329,3 +329,12 @@ h1 {
 /* 열 대상이 없는 카드는 눌리는 것처럼 보이지 않게 한다 */
 .card.no-tap { cursor: default; }
 .card.no-tap:active { filter: none; }
+
+/* --- RENPHO 주소 후보 --- */
+.try-list { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 14px; }
+.try {
+  padding: 9px 13px; border-radius: 10px; border: 1px solid var(--line);
+  background: var(--fill); color: var(--ink);
+  font: 12px/1 ui-monospace, SFMono-Regular, Menlo, monospace; cursor: pointer;
+}
+.try:active { background: var(--line); }
