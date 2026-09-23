@@ -93,3 +93,19 @@ export const CLOUD_ROWS = [
   day('2026-09-16', { vitD: true },             { pushup: 110 }),
   day('2026-09-17', { vitD: true, duta: true }, { pushup: 110 }),
 ];
+
+// --- 오늘 데이터가 없는 날 ------------------------------------------------------
+// 실제로 겪은 상황: 오늘(9/23) 걸음 데이터가 아직 없고, 어제(9/22)는
+// 하루 합계 3,269 가 들어온 뒤에 부분 기록 191 이 더 늦게 들어와 있다.
+// 마지막 "행" 을 집으면 191 이, 마지막 "날의 합계" 를 집으면 3,269 가 나온다.
+export const NO_TODAY_ROWS = [
+  m('Apple Health', 'stepCount', 3269, 'count', '2026-09-23T03:00:00Z', appleDaily('2026-09-22', true, '20:00:00')),
+  m('Apple Health', 'stepCount',  191, 'count', '2026-09-23T04:30:00Z', { local_date: '2026-09-22', local_time: '21:30:00' }),
+  m('Apple Health', 'distanceWalkingRunning', 2500, 'm', '2026-09-23T03:00:00Z', appleDaily('2026-09-22', true, '20:00:00')),
+  m('Apple Health', 'distanceWalkingRunning',  140, 'm', '2026-09-23T04:30:00Z', { local_date: '2026-09-22', local_time: '21:30:00' }),
+  m('Apple Health', 'heartRate', 108, 'count/min', '2026-09-22T00:51:00Z', { local_date: '2026-09-21', local_time: '17:51:00' }),
+  m('RENPHO Health', 'bodyMass',          77.8,  'kg', '2026-09-22T02:39:00Z', renphoMeta('2026-09-21', '19:39:00')),
+  m('RENPHO Health', 'bodyFatPercentage', 13.1,  '%',  '2026-09-22T02:39:00Z', renphoMeta('2026-09-21', '19:39:00')),
+  m('RENPHO Health', 'bodyMassIndex',     23.9,  'unitless', '2026-09-22T02:39:00Z', renphoMeta('2026-09-21', '19:39:00')),
+  m('RENPHO Health', 'leanBodyMass',      67.61, 'kg', '2026-09-22T02:39:00Z', renphoMeta('2026-09-21', '19:39:00')),
+];

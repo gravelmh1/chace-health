@@ -157,32 +157,32 @@ async function fetchDailyTotal(metric, localDate) {
  * stale 표시와 함께 돌려준다. 화면에 근거 없는 0 이 찍히는 일을 막는 장치.
  */
 export async function fetchStepsToday() {
+  return todayOrLastDay('stepCount');
+}
+
+/**
+ * 오늘의 일일 합계. 없으면 마지막으로 기록된 날의 합계.
+ *
+ * 마지막 "행" 이 아니라 마지막 "날의 합계" 인 것이 중요하다. 마지막 행은 그 날의
+ * 일부만 담은 snapshot 일 수 있어, 하루 합계보다 훨씬 작은 값이 나온다.
+ */
+async function todayOrLastDay(metric) {
   const today = laToday();
 
-  const todayRow = await fetchDailyTotal('stepCount', today);
+  const todayRow = await fetchDailyTotal(metric, today);
   if (todayRow) return { ...todayRow, isToday: true };
 
-  const last = await fetchLatestMetric(SOURCE.apple, 'stepCount');
+  const last = await fetchLatestMetric(SOURCE.apple, metric);
   if (!last) return null;
 
-  return {
-    ...last,
-    localDate: last.metadata?.local_date ?? null,
-    isToday: false,
-  };
+  const day = last.metadata?.local_date ?? null;
+  const total = day ? await fetchDailyTotal(metric, day) : null;
+  return { ...(total ?? last), localDate: day, isToday: false };
 }
 
 /** 오늘(LA 기준) 걷기·달리기 거리. 단위는 m 로 저장된다. */
 export async function fetchDistanceToday() {
-  const today = laToday();
-
-  const todayRow = await fetchDailyTotal('distanceWalkingRunning', today);
-  if (todayRow) return { ...todayRow, isToday: true };
-
-  const last = await fetchLatestMetric(SOURCE.apple, 'distanceWalkingRunning');
-  if (!last) return null;
-
-  return { ...last, localDate: last.metadata?.local_date ?? null, isToday: false };
+  return todayOrLastDay('distanceWalkingRunning');
 }
 
 // ---------------------------------------------------------------------------
@@ -264,9 +264,20 @@ function dashboardFromRows(metrics) {
   const stepsToday = dailyTotal(metrics, profileId, 'stepCount', today);
   const distToday = dailyTotal(metrics, profileId, 'distanceWalkingRunning', today);
 
+  /**
+   * 오늘 데이터가 없을 때 물러나는 값.
+   *
+   * 마지막 행을 그대로 쓰면 안 된다. 그 행이 그 날의 일부만 담은 snapshot 일 수 있어
+   * 하루 합계보다 훨씬 작은 값이 나온다 (예: 3,269 걸음인 날에 191 이 찍힌다).
+   * 마지막으로 기록된 날짜를 찾은 뒤, 그 날의 합계를 오늘과 같은 규칙으로 고른다.
+   */
   const lastOf = (metric) => {
     const last = latestMetric(metrics, profileId, SOURCE.apple, metric);
-    return last ? { ...last, localDate: last.metadata?.local_date ?? null, isToday: false } : null;
+    if (!last) return null;
+
+    const day = last.metadata?.local_date ?? null;
+    const total = day ? dailyTotal(metrics, profileId, metric, day) : null;
+    return { ...(total ?? last), localDate: day, isToday: false };
   };
 
   return {
