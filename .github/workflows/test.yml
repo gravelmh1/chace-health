@@ -25,6 +25,8 @@ jobs:
         run: npm run test:setup
       - name: 자동 업데이트 검증
         run: npm run test:update
+      - name: 링크로 키 넣기 검증
+        run: npm run test:keylink
       - uses: actions/upload-artifact@v4
         if: always()
         with:

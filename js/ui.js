@@ -24,6 +24,7 @@ import {
 } from './tracker.js';
 import { CHART_DAYS } from './config.js';
 import { APP_VERSION, checkForUpdate } from './version.js';
+import { consumeKeyFromUrl } from './key-link.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -350,6 +351,9 @@ function renderAllLocal() {
 }
 
 export function init() {
+  // 주소로 키가 전달됐으면 가장 먼저 처리한다. 저장 즉시 주소에서 지운다.
+  const fromLink = consumeKeyFromUrl();
+
   const today = laToday();
   selectedDate = today;
   anchorDate = today;
@@ -390,6 +394,21 @@ export function init() {
   });
   window.addEventListener('pageshow', (e) => {
     if (e.persisted && !setupOpen()) refresh(); // bfcache 복원
+  });
+
+  if (fromLink.reason) renderErrors([`링크의 키를 쓸 수 없습니다: ${fromLink.reason}`]);
+
+  // 앱을 이미 열어 둔 상태에서 #key= 링크를 누르면 주소의 조각만 바뀌고
+  // 스크립트는 다시 실행되지 않는다. 그 경우도 받아 준다.
+  window.addEventListener('hashchange', () => {
+    const r = consumeKeyFromUrl();
+    if (r.applied) {
+      renderErrors([]);
+      refresh();
+      renderAllLocal();
+    } else if (r.reason) {
+      renderErrors([`링크의 키를 쓸 수 없습니다: ${r.reason}`]);
+    }
   });
 
   checkForUpdate().then((r) => {
