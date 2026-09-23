@@ -10,9 +10,8 @@
 import { SUPABASE_URL } from './config.js';
 import { authHeaders } from './supabase.js';
 
-// 실제로 눈으로 구분이 안 되는 것만 넣는다. 넓힐수록 조합이 폭증해서
-// 정작 흔한 실수를 못 잡고 한도에 걸린다.
-const LOOKALIKES = [
+// 1단계: 가장 자주 틀리는 것들. 이것만 모든 조합을 만든다.
+const CORE = [
   ['l', 'I', '1'],
   ['O', '0'],
   ['S', '5'],
@@ -21,7 +20,30 @@ const LOOKALIKES = [
   ['G', '6'],
 ];
 
-const optionsFor = (ch) => LOOKALIKES.find((g) => g.includes(ch)) ?? [ch];
+// 2단계: 여기까지 넣어 모든 조합을 만들면 수천 가지가 되어 실용적이지 않다.
+// 그래서 2단계는 "한 글자만 바꾼" 후보로 제한한다.
+const EXTRA = [
+  ['-', '_'],
+  ['q', 'g'],
+  ['c', 'e'],
+  ['n', 'h'],
+  ['r', 'v'],
+  ['m', 'rn'],
+];
+
+const coreOptions = (ch) => CORE.find((g) => g.includes(ch)) ?? [ch];
+
+/** 대소문자가 헷갈리는 글자 — 모양이 같고 크기만 다르다 */
+const CASE_AMBIGUOUS = 'cosuvwxzpkjy';
+
+function extraOptions(ch) {
+  const out = new Set();
+  for (const g of EXTRA) if (g.includes(ch)) g.forEach((x) => { if (x !== ch) out.add(x); });
+  if (CASE_AMBIGUOUS.includes(ch.toLowerCase())) {
+    out.add(ch === ch.toLowerCase() ? ch.toUpperCase() : ch.toLowerCase());
+  }
+  return [...out];
+}
 
 // 형식이 정해진 앞부분은 손대지 않는다. 여기까지 틀릴 일이 없고,
 // 포함시키면 조합만 몇 배로 불어난다.
@@ -42,7 +64,7 @@ export function keyVariants(key) {
   const head = fixedHead(key);
   const slots = [];
   for (let i = head; i < key.length; i++) {
-    const opts = optionsFor(key[i]);
+    const opts = coreOptions(key[i]);
     if (opts.length > 1) slots.push({ i, opts });
   }
   if (!slots.length) return [key];
@@ -62,6 +84,21 @@ export function keyVariants(key) {
   }
   // 원본을 맨 앞으로 (맞다면 한 번에 끝난다)
   return [key, ...out.filter((v) => v !== key)];
+}
+
+/**
+ * 2단계 후보: 원본에서 한 글자만 바꾼 것들.
+ * 조합을 만들지 않으므로 개수가 글자 수에 비례해 늘어난다 (수십 개 수준).
+ */
+export function singleEditVariants(key) {
+  const head = fixedHead(key);
+  const out = [];
+  for (let i = head; i < key.length; i++) {
+    for (const ch of extraOptions(key[i])) {
+      out.push(key.slice(0, i) + ch + key.slice(i + 1));
+    }
+  }
+  return [...new Set(out)].filter((v) => v !== key);
 }
 
 /** 이 키로 Supabase 가 응답하는지 확인한다. */
@@ -86,8 +123,12 @@ async function keyWorks(key, signal) {
  * @returns {Promise<{found:string|null, tried:number, total:number, tooMany?:boolean}>}
  */
 export async function repairKey(key, onProgress) {
-  const variants = keyVariants(key.trim());
-  if (!variants) return { found: null, tried: 0, total: 0, tooMany: true };
+  const trimmed = key.trim();
+  const core = keyVariants(trimmed);
+  if (!core) return { found: null, tried: 0, total: 0, tooMany: true };
+
+  // 1단계에서 못 찾으면, 한 글자만 다른 후보까지 본다.
+  const variants = [...core, ...singleEditVariants(trimmed).filter((v) => !core.includes(v))];
 
   const BATCH = 6; // 한 번에 보내는 요청 수
   let tried = 0;
