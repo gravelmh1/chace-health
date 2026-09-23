@@ -77,8 +77,14 @@ export const APPLE_HEALTH_SCHEME = 'x-apple-health://';
 export const APPLE_HEALTH_DIRECT = true;   // 건강 앱은 항상 설치돼 있다
 export const APPLE_HEALTH_FALLBACK_URL = null;
 
+// iframe 으로 던진 스킴은 최신 iOS Safari 가 무시한다. Apple 건강은 직접 이동이라
+// 열렸고 RENPHO 는 iframe 이라 열리지 않았다. 같은 방식으로 맞춘다.
+//
+// 대신 스킴이 틀리면 "주소가 유효하지 않습니다" 가 한 번 뜬다.
+// renpho:// 는 실기기에서 확인되지 않은 값이므로, 이 시도 자체가 확인 절차다.
+// 오류가 뜨면 이 스킴이 아니라는 뜻이니 값을 바꾸거나 null 로 끄면 된다.
 export const RENPHO_APP_SCHEME = 'renpho://';
-export const RENPHO_DIRECT = false;        // 설치 여부를 알 수 없다
+export const RENPHO_DIRECT = true;
 export const RENPHO_FALLBACK_URL = null;
 
 // ---------------------------------------------------------------------------

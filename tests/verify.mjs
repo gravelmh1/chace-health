@@ -313,9 +313,10 @@ async function clickCard(id) {
   const o = nav.opened[0];
   checks.push([`RENPHO → 앱 스킴 (${o?.scheme ?? '시도 없음'})`, o?.scheme === 'renpho://']);
   checks.push(['RENPHO: 폴백 없음 (App Store 로 안 감)', o?.fallback === null]);
-  checks.push([`RENPHO: iframe 으로만 시도 (${nav.schemeSrc.join(',') || '없음'})`,
-    o?.direct === false && nav.schemeSrc.includes('renpho://')]);
-  checks.push([`RENPHO: 최상위는 이동하지 않음 (${nav.top ?? '이동 없음'})`, nav.top === null]);
+  // iframe 으로 던진 스킴은 최신 iOS Safari 가 무시한다. Apple 과 같은 방식으로 맞췄다.
+  checks.push(['RENPHO: 최상위로 직접 이동', o?.direct === true]);
+  checks.push([`RENPHO: https 로 새지 않음 (${nav.top ?? '이동 없음'})`,
+    !nav.top || !nav.top.startsWith('http')]);
 }
 
 // 스킴이 설정돼 있으므로 두 카드 모두 누를 수 있어야 한다
