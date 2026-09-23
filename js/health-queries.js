@@ -23,7 +23,7 @@ import { unpackSyncPull, latestMetric, dailyTotal } from './select.js';
 import {
   METRICS_TABLE, METRICS_COL as C, SOURCE, SYNC_PULL_FNS,
 } from './config.js';
-import { getProfileId } from './settings.js';
+import { getProfileId, getAnonKey } from './settings.js';
 import { laToday } from './time.js';
 
 const SELECT = `${C.value},${C.unit},${C.recordedAt},${C.metadata}`;
@@ -201,7 +201,10 @@ export async function fetchDistanceToday() {
 // 어떤 이름이 통했는지 기억해 두고 다음부터는 그것만 부른다.
 export let SYNC_PULL_FN = SYNC_PULL_FNS[0];
 
-let rpcAvailable = null; // null=아직 모름, false=전부 실패(폴백 고정)
+// null=아직 모름, true=쓸 수 있음, false=이 키로는 안 됨.
+// 어떤 키로 판정했는지 함께 기억한다 — 키가 바뀌면 다시 판정해야 한다.
+let rpcAvailable = null;
+let probedKey = null;
 
 // 한 번의 새로고침에서 대시보드와 달력이 같은 응답을 쓰도록 아주 짧게만 캐시한다.
 // (캐시 때문에 옛날 값이 남는 일이 없도록 수명을 3초로 묶는다)
@@ -210,6 +213,19 @@ let lastPull = { at: 0, data: null };
 
 /** RPC 응답을 가져온다. 함수가 없으면 null. */
 export async function pullSyncData() {
+  const key = getAnonKey();
+
+  // 키가 없을 때의 실패는 RPC 에 대한 판정이 아니다.
+  // 여기서 "안 됨" 으로 못박으면, 키를 넣은 뒤에도 계속 테이블로만 가게 된다.
+  if (!key) return null;
+
+  // 키가 바뀌었으면 이전 판정과 캐시를 버린다.
+  if (probedKey !== key) {
+    probedKey = key;
+    rpcAvailable = null;
+    lastPull = { at: 0, data: null };
+  }
+
   if (rpcAvailable === false) return null;
   if (lastPull.data && Date.now() - lastPull.at < PULL_TTL_MS) return lastPull.data;
 
