@@ -173,6 +173,7 @@ export function metricTime(entry) {
     const fromLocal =
       formatLocalStamp(md.local_timestamp)
       ?? formatLocalStamp(md.sample_end_local)
+      ?? formatLocalStamp(md.sample_time_local)
       ?? (md.local_date && md.local_time
             ? formatLocalStamp(`${md.local_date}T${md.local_time}`)
             : null);
