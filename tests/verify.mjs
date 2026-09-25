@@ -187,8 +187,8 @@ checks.push([
 ]);
 const lgItems = await page.$$eval('.lg-item .lg-name', (els) => els.map((e) => e.textContent));
 checks.push([
-  '차트 범례 = 푸쉬업/덤벨/삼두/어깨',
-  JSON.stringify(lgItems) === JSON.stringify(['푸쉬업', '덤벨', '삼두', '어깨']),
+  '차트 범례 = 푸쉬업/이두/삼두/어깨',
+  JSON.stringify(lgItems) === JSON.stringify(['푸쉬업', '이두', '삼두', '어깨']),
 ]);
 const marks = await page.$$eval('.lg-mark', (els) => els.length);
 checks.push(['범례 도형 마커 4개 (색약 대비 보조부호)', marks === 4]);
@@ -245,8 +245,8 @@ checks.push([
 // 운동 타일
 const tiles = await page.$$eval('.ex-tile .ex-name', (els) => els.map((e) => e.textContent));
 checks.push([
-  '기록하기 타일 = 푸쉬업/덤벨/삼두/어깨',
-  JSON.stringify(tiles) === JSON.stringify(['푸쉬업', '덤벨', '삼두', '어깨']),
+  '기록하기 타일 = 푸쉬업/이두/삼두/어깨',
+  JSON.stringify(tiles) === JSON.stringify(['푸쉬업', '이두', '삼두', '어깨']),
 ]);
 
 await page.screenshot({

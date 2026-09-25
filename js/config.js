@@ -144,7 +144,7 @@ export const DAYS_COL = {
 };
 
 // shape 은 색 없이도 계열을 구분하기 위한 보조 부호다.
-// 색약(적록) 환경에서 삼두(초록) ↔ 덤벨(주황) 선이 거의 겹치기 때문에,
+// 색약(적록) 환경에서 삼두(초록) ↔ 이두(주황) 선이 거의 겹치기 때문에,
 // 원본이 이미 타일에 쓰고 있는 도형을 차트 마커로도 그대로 쓴다.
 //
 // workouts JSONB 의 실제 키 이름은 아직 확정되지 않았다. 그래서 id 하나만 보지 않고
@@ -152,8 +152,9 @@ export const DAYS_COL = {
 export const EXERCISES = [
   { id: 'pushup',   label: '푸쉬업', shape: 'arrow',    color: '#2F7BEF',
     aliases: ['pushUp', 'push_up', 'pushups', 'pushUps'] },
-  { id: 'dumbbell', label: '덤벨',   shape: 'diamond',  color: '#F5A623',
-    aliases: ['dumbBell', 'dumb_bell', 'dumbbells'] },
+  // 화면 이름은 '이두' (예전 '덤벨'). id 는 그대로 둔다 — 지난 기록이 이 키로 저장돼 있다.
+  { id: 'dumbbell', label: '이두',   shape: 'diamond',  color: '#F5A623',
+    aliases: ['dumbBell', 'dumb_bell', 'dumbbells', 'biceps', 'bicep'] },
   { id: 'triceps',  label: '삼두',   shape: 'circle',   color: '#34C759',
     aliases: ['tricep', 'tri', 'triceps_ext'] },
   { id: 'shoulder', label: '어깨',   shape: 'triangle', color: '#9B59E8',
