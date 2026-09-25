@@ -18,7 +18,7 @@ import {
   openRenpho, openAppleHealth, canOpenRenpho, canOpenAppleHealth,
 } from './open-renpho.js';
 import { buildWeekGrid, gridRange, fetchCalendarEvents } from './calendar.js';
-import { renderChart, renderLegend } from './chart.js';
+import { renderChart, renderLegend, dayDetail } from './chart.js';
 import {
   loadLog, dayEntry, setMed, setExercise, exerciseTotal,
   medsDueOn, isDutaDay, loadCloudDays, localEvents, addEvent, removeEvent,
@@ -261,7 +261,6 @@ async function renderCalendar() {
     // 내용이 없어도 자리를 비워 두어야 행끼리 줄이 맞는다.
     el.innerHTML =
       `<span class="d">${cell.day}</span>` +
-      '<span class="slot"><i class="tag vd">비D</i></span>' +
       `<span class="slot">${isDutaDay(cell.dateStr) ? '<i class="tag dt">두타</i>' : ''}</span>` +
       `<span class="slot cnt">${total ? `${total}회` : ''}</span>` +
       `<span class="slot evt">${titles[0] ? escapeHtml(titles[0]) : ''}</span>` +
@@ -394,6 +393,33 @@ function renderChartCard() {
 
   $('chart-legend').innerHTML = renderLegend(series);
   $('chart-body').innerHTML = renderChart(dates, series);
+  chartState = { dates, series };
+  showChartDay(chartState.selected ?? null);
+}
+
+// 막대를 누르면 그 날의 운동별 숫자를 차트 아래 한 줄로 보여 준다 (팝업 없음).
+let chartState = { dates: [], series: {}, selected: null };
+
+function showChartDay(i) {
+  const { dates, series } = chartState;
+  chartState.selected = i;
+  document.querySelectorAll('#chart-body .bar').forEach((g) =>
+    g.classList.toggle('on', Number(g.dataset.i) === i));
+  const box = $('chart-detail');
+  box.textContent = i === null || !dates[i]
+    ? '막대를 누르면 그 날의 운동별 횟수가 나옵니다'
+    : dayDetail(dates[i], series, i);
+}
+
+function setupChartTap() {
+  const pick = (e) => {
+    const g = e.target.closest?.('.bar');
+    if (g) showChartDay(Number(g.dataset.i));
+  };
+  $('chart-body').addEventListener('click', pick);
+  $('chart-body').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(e); }
+  });
 }
 
 // --- 초기화 -------------------------------------------------------------------
@@ -435,6 +461,10 @@ export function init() {
   // 그렇지 않으면 눌러도 아무 일이 없으므로, 눌리는 것처럼 보이지 않게 둔다.
   setupCardTap('renpho-card', canOpenRenpho(), openRenpho);
   setupCardTap('apple-card', canOpenAppleHealth(), openAppleHealth);
+  setupChartTap();
+  // 매일 먹는 약(비타민D)은 모든 칸에 똑같이 찍히므로 칸에서 빼고 제목 옆에 한 번만 적는다.
+  $('cal-daily').innerHTML = MEDICATIONS.filter((m) => m.daily)
+    .map((m) => `<i class="tag vd">${escapeHtml(m.short)} 매일</i>`).join('');
   $('cal-today').addEventListener('click', () => {
     selectedDate = laToday();
     anchorDate = laToday();

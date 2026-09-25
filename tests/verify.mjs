@@ -154,15 +154,24 @@ checks.push([
   `두타 = 격일 (${dutaDays.join(',')})`,
   dutaDays.length === 10 && dutaDays.every((d) => d % 2 === 1),
 ]);
-const vdDays = await page.$$eval('.cal-cell:has(.tag.vd) .d', (els) => els.length);
-checks.push(['비D = 매일 21칸', vdDays === 21]);
+const vdDays = await page.$$eval('.cal-cell .tag.vd', (els) => els.length);
+const vdHead = (await page.textContent('#cal-daily')).trim();
+checks.push([`비D 는 칸이 아니라 '3주 기록' 옆에 (${vdHead}, 칸 ${vdDays}개)`, vdDays === 0 && vdHead === '비D 매일']);
 
 // 차트
 const yTicks = await page.$$eval('.chart .ytick', (els) => els.map((e) => e.textContent));
 checks.push([
-  `차트 y눈금 = 0,28,55,83,110 (받은 값: ${yTicks.join(',')})`,
-  JSON.stringify(yTicks) === JSON.stringify(['0', '28', '55', '83', '110']),
+  `차트 y눈금 = 0,100,200,300 (하루 합계 최대 260) (받은 값: ${yTicks.join(',')})`,
+  JSON.stringify(yTicks) === JSON.stringify(['0', '100', '200', '300']),
 ]);
+// 누적 막대: 하루 1개, 막대 위 합계 = 달력 운동 횟수와 같은 값
+const bars = await page.$$eval('.chart .bar', (els) => els.length);
+const barTotals = await page.$$eval('.chart .btot', (els) => els.map((e) => e.textContent));
+checks.push([`누적 막대 14개, 합계 ${barTotals.join(' ')}`, bars === 14
+  && barTotals.join(',') === '210,260,60,60,110,110,110']);
+await page.click('.chart .bar[data-i="13"]');
+const detail = (await page.textContent('#chart-detail')).trim();
+checks.push([`막대 누르면 운동별 숫자 (${detail})`, detail.startsWith('9/17 · 합계')]);
 const xTicks = await page.$$eval('.chart .xtick', (els) => els.map((e) => e.textContent));
 checks.push([
   `차트 x라벨 = 9/4…9/17 (${xTicks.join(' ')})`,
@@ -193,12 +202,12 @@ const rowGeom = await page.evaluate(() => {
   };
   return {
     heights: [...new Set(cells.map((c) => Math.round(c.getBoundingClientRect().height)))],
-    vdTops: [...new Set(cells.map((c) => topOf(c, '.tag.vd')).filter((v) => v !== null))],
+    dtTops: [...new Set(cells.map((c) => topOf(c, '.tag.dt')).filter((v) => v !== null))],
     cntTops: [...new Set(cells.map((c) => topOf(c, '.cnt')).filter((v) => v !== null))],
   };
 });
 checks.push([`달력 칸 높이가 모두 같음 (${rowGeom.heights.join(',')})`, rowGeom.heights.length === 1]);
-checks.push([`비D 태그가 같은 높이 (${rowGeom.vdTops.length}종)`, rowGeom.vdTops.length === 1]);
+checks.push([`두타 태그가 같은 높이 (${rowGeom.dtTops.length}종)`, rowGeom.dtTops.length === 1]);
 checks.push([`운동 횟수가 같은 높이 (${rowGeom.cntTops.length}종)`, rowGeom.cntTops.length === 1]);
 
 // + 버튼 = 운동 일정 입력

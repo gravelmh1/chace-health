@@ -124,6 +124,9 @@ h1 {
 /* --- 3주 기록 --- */
 .cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
 .cal-head h2 { margin: 0; font-size: 19px; font-weight: 750; letter-spacing: -0.025em; }
+.cal-title { display: flex; align-items: center; gap: 8px; }
+.cal-daily { display: inline-flex; gap: 4px; }
+.cal-daily .tag { font-size: 11.5px; letter-spacing: 0; }
 .pill {
   padding: 7px 14px; border-radius: 999px; border: none;
   background: var(--blue-soft); color: var(--blue);
@@ -253,6 +256,17 @@ h1 {
 .chart .grid { stroke: var(--line); stroke-width: 1; }
 .chart .ytick { fill: var(--ink-3); font-size: 11px; text-anchor: end; }
 .chart .xtick { fill: var(--ink-3); font-size: 11px; text-anchor: middle; }
+.chart .xtick.today { fill: var(--ink); font-weight: 700; }
+.chart .btot { fill: var(--ink-2); font-size: 10.5px; font-weight: 650; text-anchor: middle;
+  font-variant-numeric: tabular-nums; }
+.chart .bar { cursor: pointer; outline: none; }
+.chart .bar .hit { fill: transparent; }
+.chart .bar.on .hit, .chart .bar:focus-visible .hit { fill: var(--fill); }
+.chart .bar.on .btot { fill: var(--ink); }
+.chart-detail {
+  margin: 8px 0 0; min-height: 18px; font-size: 12.5px; color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
 
 /* --- 설정 시트 --- */
 .sheet {
@@ -347,3 +361,11 @@ h1 {
   font: 12px/1 ui-monospace, SFMono-Regular, Menlo, monospace; cursor: pointer;
 }
 .try:active { background: var(--line); }
+
+/* 아이폰에서 버튼을 빠르게 연달아 누르면 '두 번 탭 = 확대' 로 인식돼 화면이 커지던 문제.
+   manipulation 은 두 번 탭 확대만 끄고, 두 손가락 확대는 그대로 둔다. */
+html, button, [role="button"], .ex-grid, .med-list { touch-action: manipulation; }
+button { -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
+
+/* 입력칸 글자가 16px 보다 작으면 아이폰이 누르는 순간 화면을 확대한다. */
+input, textarea, select { font-size: 16px !important; }

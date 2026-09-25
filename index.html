@@ -93,7 +93,7 @@
   <!-- 3주 기록 -->
   <section class="card cal">
     <div class="cal-head">
-      <h2>3주 기록</h2>
+      <h2 class="cal-title">3주 기록<span id="cal-daily" class="cal-daily"></span></h2>
       <button id="cal-today" class="pill" type="button">오늘</button>
     </div>
     <div class="dow">
@@ -125,10 +125,11 @@
   <section class="card chartcard">
     <div class="chart-head">
       <h2>최근 2주 운동</h2>
-      <span class="muted">하루 운동 횟수</span>
+      <span class="muted">하루 운동 횟수 · 운동별 누적</span>
     </div>
     <div id="chart-legend" class="chart-legend"></div>
     <div id="chart-body" class="chart-body"></div>
+    <p id="chart-detail" class="chart-detail">막대를 누르면 그 날의 운동별 횟수가 나옵니다</p>
   </section>
 
   <div id="evt-sheet" class="sheet" hidden>

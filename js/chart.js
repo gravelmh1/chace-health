@@ -1,24 +1,35 @@
-// '최근 2주 운동' 선 차트 (인라인 SVG).
+// '최근 2주 운동' 누적 막대 차트 (인라인 SVG).
 //
-// 계열이 4개인데 원본 팔레트는 색약(적록) 환경에서 삼두(초록)와 덤벨(주황)의
-// 분리도가 낮다. 색을 바꾸지 않는 대신, 원본이 이미 타일에 쓰고 있는 도형을
-// 마커로 함께 그려서 색 없이도 계열이 구분되게 한다.
-// 범례에는 계열별 합계를 직접 표기해 값 자체도 색에 의존하지 않는다.
+// 하루에 막대 하나. 막대 높이 = 그 날 운동 합계, 칸 = 운동별 횟수.
+//
+// 쌓는 순서는 설정 순서가 아니라 색 구분이 잘 되는 순서다 (아래→위 파랑·초록·보라·주황).
+// 원본 팔레트에서 초록과 주황은 적록 색약에게 거의 같은 색이라, 둘이 맞닿지 않게 한다.
+// 칸 사이에는 2px 틈을 두고, 막대를 누르면 그 날의 운동별 숫자를 글자로 보여 준다.
 
 import { EXERCISES } from './config.js';
 import { shortLabel } from './time.js';
 
 const W = 460;          // viewBox 기준 폭 (실제 크기는 CSS 가 정한다)
 const H = 300;
-const PAD = { top: 16, right: 10, bottom: 30, left: 34 };
+const PAD = { top: 22, right: 6, bottom: 30, left: 34 };
+const GAP = 2;          // 칸 사이 틈
+const RADIUS = 4;       // 막대 윗끝 둥글게
 
 const plotW = W - PAD.left - PAD.right;
 const plotH = H - PAD.top - PAD.bottom;
 
-/** 0 / 1/4 / 2/4 / 3/4 / 최대 다섯 눈금 */
+/** 아래에서 위로 쌓는 순서 */
+export const STACK_ORDER = ['pushup', 'triceps', 'shoulder', 'dumbbell'];
+const STACK = STACK_ORDER.map((id) => EXERCISES.find((e) => e.id === id)).filter(Boolean)
+  .concat(EXERCISES.filter((e) => !STACK_ORDER.includes(e.id)));
+
+/** 0 부터 보기 좋은 간격(1·2·2.5·5 × 10ⁿ)으로, 눈금 5개 이하 */
 function yTicks(max) {
-  if (!(max > 0)) return [0, 1];
-  return [0, 1, 2, 3, 4].map((i) => Math.round((max * i) / 4));
+  if (!(max > 0)) return [0, 1, 2, 3, 4];
+  const mag = 10 ** Math.floor(Math.log10(max / 4));
+  const step = [1, 2, 2.5, 5, 10, 20].map((m) => m * mag).find((v) => Math.ceil(max / v) <= 4);
+  const n = Math.ceil(max / step);
+  return Array.from({ length: n + 1 }, (_, i) => Math.round(i * step * 100) / 100);
 }
 
 function marker(shape, cx, cy, color) {
@@ -36,6 +47,19 @@ function marker(shape, cx, cy, color) {
   }
 }
 
+/** 윗모서리만 둥근 사각형 */
+function topRounded(x, y, w, h, r) {
+  r = Math.min(r, h, w / 2);
+  return `M${x} ${y + h} V${y + r} Q${x} ${y} ${x + r} ${y} H${x + w - r} Q${x + w} ${y} ${x + w} ${y + r} V${y + h} Z`;
+}
+
+/** 그 날의 운동별 숫자를 글자로 (막대를 눌렀을 때 차트 아래에 보인다) */
+export function dayDetail(date, series, i) {
+  const parts = STACK.map((ex) => `${ex.label} ${series[ex.id]?.[i] ?? 0}`);
+  const total = STACK.reduce((a, ex) => a + (series[ex.id]?.[i] ?? 0), 0);
+  return `${shortLabel(date)} · 합계 ${total} — ${parts.join(' · ')}`;
+}
+
 /**
  * @param {string[]} dates   'YYYY-MM-DD' 오름차순
  * @param {Record<string, number[]>} series  운동 id → 날짜별 값
@@ -43,13 +67,14 @@ function marker(shape, cx, cy, color) {
 export function renderChart(dates, series) {
   if (!dates.length) return '';
 
-  const allValues = EXERCISES.flatMap((ex) => series[ex.id] ?? []);
-  const rawMax = Math.max(0, ...allValues);
-  const ticks = yTicks(rawMax);
+  const totals = dates.map((_, i) => STACK.reduce((a, ex) => a + (series[ex.id]?.[i] || 0), 0));
+  const ticks = yTicks(Math.max(0, ...totals));
   const max = ticks[ticks.length - 1] || 1;
 
-  const x = (i) => PAD.left + (dates.length === 1 ? plotW / 2 : (plotW * i) / (dates.length - 1));
-  const y = (v) => PAD.top + plotH - (plotH * (v || 0)) / max;
+  const slot = plotW / dates.length;
+  const barW = Math.min(22, slot * 0.62);
+  const cx = (i) => PAD.left + slot * (i + 0.5);
+  const y = (v) => PAD.top + plotH - (plotH * v) / max;
 
   // 가로 눈금선 + y 라벨
   let grid = '';
@@ -64,24 +89,48 @@ export function renderChart(dates, series) {
   dates.forEach((d, i) => {
     const isLast = i === dates.length - 1;
     if (i % 2 === 0 || isLast) {
-      xlabels += `<text x="${x(i)}" y="${H - 8}" class="xtick">${shortLabel(d)}</text>`;
+      xlabels += `<text x="${cx(i)}" y="${H - 8}" class="xtick${isLast ? ' today' : ''}">${shortLabel(d)}</text>`;
     }
   });
 
-  // 계열
-  let lines = '';
-  for (const ex of EXERCISES) {
-    const vals = series[ex.id] ?? [];
-    if (!vals.length) continue;
-    const pts = vals.map((v, i) => `${x(i)},${y(v)}`).join(' ');
-    lines += `<polyline points="${pts}" fill="none" stroke="${ex.color}"
-                        stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
-    lines += vals.map((v, i) => marker(ex.shape, x(i), y(v), ex.color)).join('');
-  }
+  // 막대
+  let bars = '';
+  dates.forEach((d, i) => {
+    const x0 = cx(i) - barW / 2;
+    const segs = STACK
+      .map((ex) => ({ ex, v: series[ex.id]?.[i] || 0 }))
+      .filter((sg) => sg.v > 0);
+
+    // 아래부터 쌓는다. 맨 위 칸이 아니면 위쪽에 2px 틈을 남긴다.
+    let marks = '';
+    let below = 0;
+    segs.forEach((sg, k) => {
+      const isTop = k === segs.length - 1;
+      const bottom = y(below);
+      const top = y(below + sg.v) + (isTop ? 0 : GAP);
+      below += sg.v;
+      const h = bottom - top;
+      if (h <= 0.5) return;
+      marks += isTop
+        ? `<path d="${topRounded(x0, top, barW, h, RADIUS)}" fill="${sg.ex.color}"/>`
+        : `<rect x="${x0}" y="${top}" width="${barW}" height="${h}" fill="${sg.ex.color}"/>`;
+    });
+
+    // 합계는 막대 위에 작게. 0 인 날은 적지 않는다.
+    const label = totals[i] > 0
+      ? `<text x="${cx(i)}" y="${y(totals[i]) - 5}" class="btot">${totals[i]}</text>` : '';
+
+    // 누르기 쉬운 투명 영역 (막대보다 넓게)
+    bars += `<g class="bar" data-i="${i}" tabindex="0" role="button"
+               aria-label="${dayDetail(d, series, i)}">
+      <rect x="${PAD.left + slot * i}" y="${PAD.top}" width="${slot}" height="${plotH}" class="hit"/>
+      ${marks}${label}
+    </g>`;
+  });
 
   return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img"
-               aria-label="최근 ${dates.length}일 운동 횟수 추이">
-    ${grid}${xlabels}${lines}
+               aria-label="최근 ${dates.length}일 하루 운동 횟수 (운동별 누적)">
+    ${grid}${xlabels}${bars}
   </svg>`;
 }
 
