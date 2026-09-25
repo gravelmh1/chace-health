@@ -191,6 +191,60 @@ RPC 를 쓸 수 있는지에 대한 판정은 **어떤 키로 판정했는지와
 6. **캐시를 신뢰하지 않는다.** 모든 요청에 `cache: 'no-store'`,
    최초 로드 / 탭 복귀(`visibilitychange`) / bfcache 복원(`pageshow`) / 새로고침 버튼에서 재조회합니다.
 
+## 동기화 안정화 — Apple 건강 → Supabase
+
+데이터는 **Apple 건강 → ChatGPT Health → ChatGPT 자동화 "건강앱 통합 동기화" → `health_external_metrics`**
+로 들어온다. RENPHO 체성분도 Apple 건강을 거쳐 같은 길로 온다. Supabase 는 Apple 건강을 읽을 수 없으므로
+Cron / Edge Function 으로 끌어오지 않는다. 자동화가 꺼져 있으면 앱은 마지막 값을 보여 주고
+카드 위에 작은 한 줄(`Health sync delayed`)을 띄운다 — 팝업은 없다.
+
+### DB 쪽 (한 번 실행) — `supabase/sync_hardening.sql`
+
+`health_external_metrics` 에 넣기 전 트리거를 단다. 기존 행은 지우거나 고치지 않는다.
+
+| 들어오는 값 | 트리거가 하는 일 |
+|---|---|
+| Apple Health `stepCount` / `distanceWalkingRunning`, `aggregation='daily_sum'` | `recorded_at` 을 그 날 **LA 0시**로 고정 → 하루 1행. 이미 있으면 그 행을 고치고 새 행은 안 만든다 (INSERT 든 upsert 든 같다). `complete_day` = 지난 날 true / 오늘 false |
+| `bodyMass` / `leanBodyMass` 가 lb·g | kg 으로 바꾸고 원래 값은 `metadata.original_value/unit` 에 남긴다 |
+| 모든 쓰기 | `updated_at = now()` — 마지막 동기화 시각의 근거 |
+
+`source` 는 건드리지 않는다 (`RENPHO Health` 그대로). 원시 샘플을 더하지 않는다.
+
+점검은 `supabase/verify_sync.sql` (읽기 전용) — 날짜별 행 수(9/22·9/23·9/24 빈칸 확인), 합계 중복,
+PK 중복, 항목별 최신값·단위·source, 마지막 동기화 시각.
+
+### 자동화 쪽 — "건강앱 통합 동기화" 에 줄 규칙
+
+```
+매 실행마다 최근 3일(America/Los_Angeles 기준, 오늘 포함)을 다시 읽어
+health_external_metrics 에 upsert 한다. 키: (profile_id, recorded_at, source, metric).
+- stepCount, distanceWalkingRunning: 원시 샘플을 올리지 말고 LA 날짜별 합계 1행만.
+  source='Apple Health', metadata = {local_date:'YYYY-MM-DD', aggregation:'daily_sum',
+  complete_day: 오늘이면 false 지난 날이면 true, synced_local_time: 지금(LA, 오프셋 포함)}.
+  recorded_at 은 그 날 LA 0시 (DB 트리거가 어차피 맞춘다).
+- heartRate: 가장 최근 실제 샘플, recorded_at = 그 샘플의 실제 시각.
+- bodyMass, bodyFatPercentage, bodyMassIndex, leanBodyMass: 실제 측정 시각,
+  source 는 원래 기기 그대로 ('RENPHO Health'). 체중은 kg.
+- 모든 행 metadata 에 local_date, local_time, timezone, synced_local_time.
+- 한 번 실패해도 다음 실행이 3일을 다시 읽으므로 빠진 값이 채워진다. 삭제는 하지 않는다.
+```
+
+### 상태 테이블(`health_sync_status`)을 만들지 않은 이유
+
+동기화가 성공하면 오늘 합계 행이 반드시 다시 써지고(`updated_at`, `synced_local_time`),
+앱은 그 가장 늦은 시각을 "마지막 동기화" 로 쓴다. Apple·RENPHO 마지막 날짜도 행에서 바로 나온다.
+실패한 시도를 기록하려면 자동화가 상태 테이블에 따로 써야 하는데, 지금 멈춘 원인(자동화가 꺼짐)은
+그 테이블로도 보이지 않는다. 그래서 테이블 없이 metric 행에서 계산한다.
+
+### 앱 쪽 규칙 (`js/select.js`)
+
+- 하루 합계: 그 날의 `daily_sum` 행 중 **가장 나중에 동기화된 것 하나** (`synced_local_time` → `updated_at` → `recorded_at`).
+  예전에 하루 여러 개 쌓인 합계 행이 있어도 더하지 않는다.
+- 오늘 행이 없으면 가장 늦은 **날짜**의 합계 (가장 늦은 행이 아니다).
+- 체중·제지방은 kg, 거리는 m 로 환산해 읽는다.
+- 동기화 상태: 마지막 동기화 시각, Apple 마지막 날짜, RENPHO 마지막 날짜 → 설정 화면에 늘 표시,
+  6시간 넘으면 카드 위에 한 줄.
+
 ## 테스트
 
 ```bash

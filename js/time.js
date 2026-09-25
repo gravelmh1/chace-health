@@ -186,3 +186,35 @@ export function syncTime(entry) {
   const t = formatLocalStamp(entry?.metadata?.synced_local_time);
   return t ?? metricTime(entry);
 }
+
+/**
+ * metadata 의 현지 시각 문자열을 실제 시점(Date)으로.
+ *   '2026-09-22T09:02:53-07:00' → 오프셋이 있으면 그대로
+ *   '2026-09-23T09:27:14'       → 오프셋이 없으면 LA 벽시계로 읽는다
+ * 여러 행의 동기화 시각을 비교할 때 쓴다. 못 읽으면 null.
+ */
+export function parseLocalStamp(value) {
+  const s = String(value ?? '').trim();
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{1,2}):(\d{2})(?::(\d{2}))?(?:\.\d+)?(Z|[+-]\d{2}:?\d{2})?$/);
+  if (!m) return null;
+  if (m[7]) return toDate(s.replace(' ', 'T'));
+
+  const [, y, mo, d, h, mi, sec] = m.map(Number);
+  const wall = Date.UTC(y, mo - 1, d, h, mi, sec || 0);
+  // 그 벽시계 시각의 LA 오프셋을 구해 되돌린다 (서머타임 경계도 두 번 보정하면 맞는다)
+  let t = wall;
+  for (let i = 0; i < 2; i++) t = wall - laOffsetMs(new Date(t));
+  return new Date(t);
+}
+
+/** 그 시점의 LA 오프셋 (UTC 대비 ms). PDT = -7h, PST = -8h */
+function laOffsetMs(date) {
+  const p = new Intl.DateTimeFormat('en-US', {
+    timeZone: TIME_ZONE, hourCycle: 'h23',
+    year: 'numeric', month: 'numeric', day: 'numeric',
+    hour: 'numeric', minute: 'numeric', second: 'numeric',
+  }).formatToParts(date);
+  const g = (t) => Number(p.find((x) => x.type === t)?.value);
+  const asUtc = Date.UTC(g('year'), g('month') - 1, g('day'), g('hour') % 24, g('minute'), g('second'));
+  return asUtc - Math.floor(date.getTime() / 1000) * 1000;
+}

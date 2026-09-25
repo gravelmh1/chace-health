@@ -113,6 +113,22 @@ function renderApple(d) {
     : '기록 없음';
 }
 
+const dayLabel = (d) => (d ? shortLabel(d) : '없음');
+
+/**
+ * 동기화 상태. 6시간 넘게 새 데이터가 안 들어왔으면 카드 위에 작은 한 줄로 알린다.
+ * 팝업·알림창은 띄우지 않는다. 자세한 내용은 설정 화면에 늘 적어 둔다.
+ */
+function renderSync(sync) {
+  const warn = $('sync-warn');
+  const when = sync?.lastSyncAt ? formatSyncTime(sync.lastSyncAt) : '기록 없음';
+  const detail = `마지막 동기화 ${when} · Apple ${dayLabel(sync?.lastAppleDate)} · RENPHO ${dayLabel(sync?.lastRenphoDate)}`;
+
+  $('setup-sync').textContent = detail;
+  warn.hidden = !sync?.delayed;
+  warn.textContent = sync?.delayed ? `Health sync delayed · ${detail}` : '';
+}
+
 function renderErrors(errors) {
   const box = $('errors');
   if (!errors?.length) {
@@ -181,6 +197,7 @@ export async function refresh() {
 
     renderRenpho(d.renpho);
     renderApple(d);
+    renderSync(d.sync);
     renderAllLocal(); // 클라우드 기록이 들어온 뒤 달력·차트를 다시 그린다
 
     const errors = [...d.errors];

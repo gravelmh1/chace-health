@@ -80,6 +80,15 @@ h1 {
   background: #FFE9EC; color: #B3261E; font-size: 12.5px; word-break: break-word;
 }
 
+/* 동기화 지연 — 작은 한 줄. 화면을 막지 않는다 */
+.sync-warn {
+  margin: -6px 0 0; font-size: 12px; color: #9A5B00;
+}
+.sync-warn::before {
+  content: ''; display: inline-block; width: 7px; height: 7px; margin-right: 6px;
+  border-radius: 50%; background: #F2A33A; vertical-align: 1px;
+}
+
 /* --- 카드 공통 --- */
 .card { background: var(--card); border-radius: var(--r); padding: 18px; }
 

@@ -19,27 +19,18 @@
 //     "측정값 0" 과 "측정 기록 없음" 은 다른 상태이고, UI 도 다르게 보여야 한다.
 
 import { selectOne, selectRows, callRpc } from './supabase.js';
-import { unpackSyncPull, latestMetric, dailyTotal } from './select.js';
+import {
+  unpackSyncPull, latestMetric, dailyTotal, pickDaily, normalize, syncStatus,
+} from './select.js';
 import {
   METRICS_TABLE, METRICS_COL as C, SOURCE, SYNC_PULL_FNS,
 } from './config.js';
 import { getProfileId, getAnonKey } from './settings.js';
 import { laToday } from './time.js';
 
-const SELECT = `${C.value},${C.unit},${C.recordedAt},${C.metadata}`;
-
-/** 행 하나를 앱 내부 표준 형태로 정규화 */
-function normalize(row) {
-  if (!row) return null;
-  const raw = row[C.value];
-  const value = typeof raw === 'number' ? raw : Number(raw);
-  return {
-    value: Number.isFinite(value) ? value : null,
-    unit: row[C.unit] ?? null,
-    recordedAt: row[C.recordedAt] ?? null,
-    metadata: row[C.metadata] ?? null,
-  };
-}
+// metric 을 함께 받아야 단위 환산(lb→kg 등)을 metric 별로 할 수 있다.
+// updated_at 은 같은 날 합계 행이 여러 개일 때 가장 나중 것을 고르는 데 쓴다.
+const SELECT = `${C.metric},${C.value},${C.unit},${C.recordedAt},${C.metadata},${C.updatedAt}`;
 
 /**
  * (source, metric) 조합의 가장 최근 측정값 1건.
@@ -136,19 +127,8 @@ async function fetchDailyTotal(metric, localDate) {
     throw new Error(`${metric}(${localDate}): ${e.message}`);
   }
 
-  if (!rows.length) return null;
-
-  // 집계 행 우선. 없으면 가장 최근 snapshot (rows 는 이미 recorded_at 내림차순)
-  const aggregate = rows.find((r) => r[C.metadata]?.aggregation === 'daily_sum');
-  const picked = aggregate ?? rows[0];
-
-  return {
-    ...normalize(picked),
-    localDate,
-    isAggregate: !!aggregate,
-    completeDay: picked[C.metadata]?.complete_day ?? null,
-    rowCount: rows.length,
-  };
+  // 합계 행 중 가장 나중에 동기화된 것. RPC 경로와 같은 함수로 고른다.
+  return pickDaily(rows, localDate);
 }
 
 /**
@@ -275,13 +255,21 @@ function dashboardFromRows(metrics) {
     const last = latestMetric(metrics, profileId, SOURCE.apple, metric);
     if (!last) return null;
 
-    const day = last.metadata?.local_date ?? null;
+    // 가장 늦은 "날짜" 를 쓴다. 하루 합계 행은 그 날 0시에 기록되므로
+    // recorded_at 이 가장 늦은 행이 가장 늦은 날짜라는 보장이 없다.
+    const day = metrics
+      .filter((r) => r[C.profileId] === profileId && r[C.source] === SOURCE.apple
+        && r[C.metric] === metric && r[C.metadata]?.local_date)
+      .map((r) => r[C.metadata].local_date)
+      .sort()
+      .pop() ?? last.metadata?.local_date ?? null;
     const total = day ? dailyTotal(metrics, profileId, metric, day) : null;
     return { ...(total ?? last), localDate: day, isToday: false };
   };
 
   return {
     renpho: { ...renphoMetrics, syncedAt, errors: [] },
+    sync: syncStatus(metrics, profileId),
     heartRate: latestMetric(metrics, profileId, SOURCE.apple, 'heartRate'),
     steps: stepsToday ? { ...stepsToday, isToday: true } : lastOf('stepCount'),
     distance: distToday ? { ...distToday, isToday: true } : lastOf('distanceWalkingRunning'),
@@ -314,9 +302,16 @@ async function fetchDashboardByTable() {
     .map((r) => r.reason?.message || String(r.reason));
 
   const renphoVal = unwrap(renpho);
+  const entries = {
+    ...Object.fromEntries(RENPHO_METRICS.map((m) => [`${SOURCE.renpho}|${m}`, renphoVal?.[m]])),
+    [`${SOURCE.apple}|heartRate`]: unwrap(heartRate),
+    [`${SOURCE.apple}|stepCount`]: unwrap(steps),
+    [`${SOURCE.apple}|distanceWalkingRunning`]: unwrap(distance),
+  };
 
   return {
     renpho: renphoVal,
+    sync: syncFromEntries(entries),
     heartRate: unwrap(heartRate),
     steps: unwrap(steps),
     distance: unwrap(distance),
@@ -324,4 +319,21 @@ async function fetchDashboardByTable() {
     via: 'table',
     fetchedAt: new Date().toISOString(),
   };
+}
+
+/**
+ * 테이블 직접 조회 경로의 동기화 상태. 받아 온 최신값들만으로 계산한다.
+ * (RPC 경로는 받은 행 전체로 계산한다 — 규칙은 같다)
+ */
+function syncFromEntries(entries) {
+  const rows = Object.entries(entries)
+    .filter(([, e]) => e?.recordedAt)
+    .map(([k, e]) => {
+      const [source, metric] = k.split('|');
+      return {
+        [C.profileId]: getProfileId(), [C.source]: source, [C.metric]: metric,
+        [C.recordedAt]: e.recordedAt, [C.updatedAt]: e.updatedAt, [C.metadata]: e.metadata,
+      };
+    });
+  return syncStatus(rows, getProfileId());
 }
