@@ -67,6 +67,23 @@ exception when others then
 end
 $$;
 
+-- 무게 문자열을 kg 으로. 미국 지역 아이폰은 단축어가 체중을 lb 로 내보낸다.
+--   '171.4 lb' 처럼 단위가 붙어 오면 그대로 환산하고,
+--   숫자만 오면 직전 kg 기록과 비교해 약 2.2배면 lb 로 본다 (78 kg ↔ 172 lb).
+create or replace function public.chace_kg(t text, ref numeric)
+returns numeric
+language sql
+immutable
+as $$
+  select case
+    when n is null then null
+    when t ~* '(lb|lbs|pound)' then round(n * 0.45359237, 2)
+    when ref > 0 and n / ref between 2.0 and 2.45 then round(n * 0.45359237, 2)
+    else n
+  end
+  from (select public.chace_num(t) as n) x
+$$;
+
 create or replace function public.chace_health_push(
   steps          text default null,
   heart_rate     text default null,
@@ -154,7 +171,18 @@ begin
   end if;
 
   -- 3) 체성분 (RENPHO 가 Apple 건강에 써 넣은 값) — 체중 측정 시각을 넷이 공유한다.
-  w := chace_num(weight);
+  -- 직전 실측 체중·제지방(kg)을 기준으로 lb 를 kg 으로 바꾼다.
+  select value into last_v from health_external_metrics
+   where profile_id = pid and source = 'RENPHO Health' and metric = 'bodyMass' and unit = 'kg'
+   order by recorded_at desc limit 1;
+  w := chace_kg(weight, last_v);
+  weight := w::text;
+  if chace_num(lean_mass) is not null then
+    select value into last_v from health_external_metrics
+     where profile_id = pid and source = 'RENPHO Health' and metric = 'leanBodyMass' and unit = 'kg'
+     order by recorded_at desc limit 1;
+    lean_mass := chace_kg(lean_mass, last_v)::text;
+  end if;
   f := chace_num(body_fat);
   if f is not null and f > 0 and f < 1 then f := round(f * 100, 2); end if;
 
