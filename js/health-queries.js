@@ -20,7 +20,8 @@
 
 import { selectOne, selectRows, callRpc } from './supabase.js';
 import {
-  unpackSyncPull, latestMetric, dailyTotal, pickDaily, normalize, syncStatus,
+  unpackSyncPull, latestMetric, normalize, syncStatus,
+  latestHeartRate, todayOrLastDay,
 } from './select.js';
 import {
   METRICS_TABLE, METRICS_COL as C, SOURCE, SYNC_PULL_FNS,
@@ -94,41 +95,20 @@ export async function fetchRenpho() {
   return { ...metrics, syncedAt, errors };
 }
 
-/** 가장 최근 심박수 1건 (측정값 + 측정 시각). */
+/** 가장 최근 심박수 1건 — Apple Watch 등 기기 이름으로 들어온 행도 포함 (RENPHO 만 제외). */
 export async function fetchHeartRate() {
-  return fetchLatestMetric(SOURCE.apple, 'heartRate');
-}
-
-/**
- * 특정 LA 날짜의 일일 누적값 (stepCount, distanceWalkingRunning 등).
- *
- * 주의: 날짜당 행이 1개라고 가정하면 안 된다.
- *   - 현재 방식: metadata.aggregation = 'daily_sum' 인 일일 집계 행 1건
- *   - 과거 방식: 같은 local_date 에 시간별 누적 snapshot 행이 여러 개
- * 그래서 그 날짜의 행을 모두 받아서, 집계 행이 있으면 그것을 쓰고
- * 없으면 가장 최근 snapshot 을 쓴다.
- *
- * 하루가 끝나기 전(complete_day = false)이어도 그 시점까지의 누적값을 그대로 쓴다.
- */
-async function fetchDailyTotal(metric, localDate) {
-  let rows;
   try {
-    rows = await selectRows(METRICS_TABLE, {
+    const row = await selectOne(METRICS_TABLE, {
       select: SELECT,
       [C.profileId]: `eq.${getProfileId()}`,
-      [C.source]: `eq.${SOURCE.apple}`,
-      [C.metric]: `eq.${metric}`,
-      // LA 기준 날짜 문자열로 직접 매칭. UTC timestamp 범위로 자르지 않는다.
-      [`${C.metadata}->>local_date`]: `eq.${localDate}`,
+      [C.source]: `neq.${SOURCE.renpho}`,
+      [C.metric]: 'eq.heartRate',
       order: `${C.recordedAt}.desc`,
-      limit: '50',
     });
+    return normalize(row);
   } catch (e) {
-    throw new Error(`${metric}(${localDate}): ${e.message}`);
+    throw new Error(`heartRate: ${e.message}`);
   }
-
-  // 합계 행 중 가장 나중에 동기화된 것. RPC 경로와 같은 함수로 고른다.
-  return pickDaily(rows, localDate);
 }
 
 /**
@@ -137,7 +117,7 @@ async function fetchDailyTotal(metric, localDate) {
  * stale 표시와 함께 돌려준다. 화면에 근거 없는 0 이 찍히는 일을 막는 장치.
  */
 export async function fetchStepsToday() {
-  return todayOrLastDay('stepCount');
+  return todayOrLastDayByTable('stepCount');
 }
 
 /**
@@ -146,23 +126,27 @@ export async function fetchStepsToday() {
  * 마지막 "행" 이 아니라 마지막 "날의 합계" 인 것이 중요하다. 마지막 행은 그 날의
  * 일부만 담은 snapshot 일 수 있어, 하루 합계보다 훨씬 작은 값이 나온다.
  */
-async function todayOrLastDay(metric) {
-  const today = laToday();
-
-  const todayRow = await fetchDailyTotal(metric, today);
-  if (todayRow) return { ...todayRow, isToday: true };
-
-  const last = await fetchLatestMetric(SOURCE.apple, metric);
-  if (!last) return null;
-
-  const day = last.metadata?.local_date ?? null;
-  const total = day ? await fetchDailyTotal(metric, day) : null;
-  return { ...(total ?? last), localDate: day, isToday: false };
+async function todayOrLastDayByTable(metric) {
+  // 최근 합계 행들을 받아 RPC 경로와 같은 규칙(todayOrLastDay)으로 고른다.
+  let rows;
+  try {
+    rows = await selectRows(METRICS_TABLE, {
+      select: `${C.profileId},${C.source},${SELECT}`,
+      [C.profileId]: `eq.${getProfileId()}`,
+      [C.source]: `eq.${SOURCE.apple}`,
+      [C.metric]: `eq.${metric}`,
+      order: `${C.recordedAt}.desc`,
+      limit: '60',
+    });
+  } catch (e) {
+    throw new Error(`${metric}: ${e.message}`);
+  }
+  return todayOrLastDay(rows, getProfileId(), metric, laToday());
 }
 
 /** 오늘(LA 기준) 걷기·달리기 거리. 단위는 m 로 저장된다. */
 export async function fetchDistanceToday() {
-  return todayOrLastDay('distanceWalkingRunning');
+  return todayOrLastDayByTable('distanceWalkingRunning');
 }
 
 // ---------------------------------------------------------------------------
@@ -241,38 +225,12 @@ function dashboardFromRows(metrics) {
     }
   }
 
-  const stepsToday = dailyTotal(metrics, profileId, 'stepCount', today);
-  const distToday = dailyTotal(metrics, profileId, 'distanceWalkingRunning', today);
-
-  /**
-   * 오늘 데이터가 없을 때 물러나는 값.
-   *
-   * 마지막 행을 그대로 쓰면 안 된다. 그 행이 그 날의 일부만 담은 snapshot 일 수 있어
-   * 하루 합계보다 훨씬 작은 값이 나온다 (예: 3,269 걸음인 날에 191 이 찍힌다).
-   * 마지막으로 기록된 날짜를 찾은 뒤, 그 날의 합계를 오늘과 같은 규칙으로 고른다.
-   */
-  const lastOf = (metric) => {
-    const last = latestMetric(metrics, profileId, SOURCE.apple, metric);
-    if (!last) return null;
-
-    // 가장 늦은 "날짜" 를 쓴다. 하루 합계 행은 그 날 0시에 기록되므로
-    // recorded_at 이 가장 늦은 행이 가장 늦은 날짜라는 보장이 없다.
-    const day = metrics
-      .filter((r) => r[C.profileId] === profileId && r[C.source] === SOURCE.apple
-        && r[C.metric] === metric && r[C.metadata]?.local_date)
-      .map((r) => r[C.metadata].local_date)
-      .sort()
-      .pop() ?? last.metadata?.local_date ?? null;
-    const total = day ? dailyTotal(metrics, profileId, metric, day) : null;
-    return { ...(total ?? last), localDate: day, isToday: false };
-  };
-
   return {
     renpho: { ...renphoMetrics, syncedAt, errors: [] },
     sync: syncStatus(metrics, profileId),
-    heartRate: latestMetric(metrics, profileId, SOURCE.apple, 'heartRate'),
-    steps: stepsToday ? { ...stepsToday, isToday: true } : lastOf('stepCount'),
-    distance: distToday ? { ...distToday, isToday: true } : lastOf('distanceWalkingRunning'),
+    heartRate: latestHeartRate(metrics, profileId),
+    steps: todayOrLastDay(metrics, profileId, 'stepCount', today),
+    distance: todayOrLastDay(metrics, profileId, 'distanceWalkingRunning', today),
     errors: [],
   };
 }

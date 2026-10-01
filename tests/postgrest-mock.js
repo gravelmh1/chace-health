@@ -16,6 +16,7 @@ const cmp = (fn) => (a, b) => { const [x, y] = coerce(a, b); return fn(x, y); };
 
 const OPS = {
   eq: (a, b) => String(a) === b,
+  neq: (a, b) => String(a) !== b,
   gte: cmp((a, b) => a >= b),
   gt: cmp((a, b) => a > b),
   lte: cmp((a, b) => a <= b),

@@ -104,6 +104,45 @@ export function pickDaily(sameDay, localDate) {
   };
 }
 
+/**
+ * Apple 쪽 행인가. 동기화가 source 에 기기 이름을 넣기도 한다
+ * ('Apple Health' 뿐 아니라 'Chace’s Apple Watch' 등). RENPHO 가 아니면 Apple 쪽으로 본다.
+ */
+export const isAppleSource = (s) => !!s && s !== SOURCE.renpho;
+
+/** 가장 최근 심박수 1건 — 어느 Apple 기기에서 왔든 실제 측정 시각이 가장 늦은 것. */
+export function latestHeartRate(rows, profileId) {
+  const hr = rows.filter((r) => (!profileId || r[C.profileId] === profileId)
+    && r[C.metric] === 'heartRate' && isAppleSource(r[C.source]));
+  return normalize(sortByRecordedDesc(hr)[0]);
+}
+
+/**
+ * 오늘의 합계. 없으면 마지막으로 "제대로 기록된" 날의 합계.
+ *
+ * 동기화가 이른 아침에 돌면 그 날을 아직 데이터가 안 들어온 0 으로 써 두고 끝나는 일이 있다
+ * (complete_day = false, 값 0). 그 뒤로 동기화가 멈추면 앱이 "0 걸음" 을 보여 주게 되므로,
+ * 지난 날로 물러날 때는 그런 빈 날을 건너뛴다. 오늘의 0 은 그대로 보여 준다 (아직 안 걸었을 수 있다).
+ */
+export function todayOrLastDay(rows, profileId, metric, today) {
+  const t = dailyTotal(rows, profileId, metric, today);
+  if (t) return { ...t, isToday: true };
+
+  const days = [...new Set(filterRows(rows, { profileId, source: SOURCE.apple, metric })
+    .map((r) => r[C.metadata]?.local_date)
+    .filter((d) => d && d < today))].sort().reverse();
+
+  let first = null;
+  for (const day of days) {
+    const total = dailyTotal(rows, profileId, metric, day);
+    if (!total) continue;
+    first ??= total;
+    const unfinishedEmpty = total.value === 0 && total.metadata?.complete_day === false;
+    if (!unfinishedEmpty) return { ...total, isToday: false };
+  }
+  return first ? { ...first, isToday: false } : null;
+}
+
 /** 앱이 "동기화가 늦다" 고 알리는 기준 */
 export const SYNC_STALE_MS = 6 * 3600 * 1000;
 
@@ -122,7 +161,7 @@ export function syncStatus(rows, profileId, now = Date.now()) {
   let last = 0;
   for (const r of mine) last = Math.max(last, writtenAt(r));
 
-  const lastDate = (source) => filterRows(mine, { source })
+  const lastDate = (match) => mine.filter((r) => match(r[C.source]))
     .map((r) => r[C.metadata]?.local_date
       ?? (toDate(r[C.recordedAt]) ? laDateString(toDate(r[C.recordedAt])) : null))
     .filter(Boolean)
@@ -132,8 +171,8 @@ export function syncStatus(rows, profileId, now = Date.now()) {
   const lastSyncAt = last ? new Date(last) : null;
   return {
     lastSyncAt,
-    lastAppleDate: lastDate(SOURCE.apple),
-    lastRenphoDate: lastDate(SOURCE.renpho),
+    lastAppleDate: lastDate(isAppleSource),
+    lastRenphoDate: lastDate((s) => s === SOURCE.renpho),
     delayed: !lastSyncAt || now - last > SYNC_STALE_MS,
   };
 }

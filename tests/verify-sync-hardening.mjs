@@ -107,7 +107,31 @@ const upTo22 = PULL.metrics.filter((r) => (r.metadata?.local_date ?? '') <= '202
 const d = await open(upTo22, '2026-09-25T10:00:00Z');
 check(`9/22 합계 = 3,269 (legacy 120·191 무시, 더하지 않음) — ${d.steps}`, d.steps === '3,269');
 
-check('JS 런타임 오류 없음', [a, b, c, d].every((x) => x.errs.length === 0));
+// E) 9/30 밤 실제 DB 와 같은 모양 (숫자는 지어낸 값)
+//   - 심박수가 source='Chace’s Apple Watch' 로 들어온다 → 그것도 Apple 로 읽어야 한다
+//   - 9/29 오전 7시 동기화가 그 날을 0 (complete_day=false) 으로 써 두고 멈췄다 → 9/28 을 보여야 한다
+const P = '6eb29763-315a-46b7-bcf7-da24b8f1503e';
+const daily = (metric, d, value, complete, synced) => ({ profile_id: P, source: 'Apple Health', metric, value,
+  unit: metric === 'stepCount' ? 'count' : 'm', recorded_at: `${d}T07:00:00+00:00`, updated_at: synced,
+  metadata: { local_date: d, aggregation: 'daily_sum', complete_day: complete, synced_local_time: synced } });
+const E_ROWS = [
+  { profile_id: P, source: 'Apple Health', metric: 'heartRate', value: 90, unit: 'count/min',
+    recorded_at: '2026-09-24T21:50:00+00:00', updated_at: '2026-09-27T15:59:00+00:00',
+    metadata: { sample_time_local: '2026-09-24T14:50:00-07:00' } },
+  { profile_id: P, source: 'Chace’s Apple Watch', metric: 'heartRate', value: 101, unit: 'count/min',
+    recorded_at: '2026-09-28T02:47:00+00:00', updated_at: '2026-09-29T14:06:00+00:00',
+    metadata: { sample_time_local: '2026-09-27T19:47:00-07:00' } },
+  daily('stepCount', '2026-09-28', 4000, true, '2026-09-29T07:04:45-07:00'),
+  daily('distanceWalkingRunning', '2026-09-28', 3000, true, '2026-09-29T07:04:45-07:00'),
+  daily('stepCount', '2026-09-29', 0, false, '2026-09-29T07:04:45-07:00'),
+  daily('distanceWalkingRunning', '2026-09-29', 0, false, '2026-09-29T07:04:45-07:00'),
+];
+const e = await open(E_ROWS, '2026-10-01T03:27:00Z');
+check(`Apple Watch 심박수도 읽음 — ${e.hr} (${e.hrTime})`, e.hr === '101' && e.hrTime.startsWith('9. 27. 오후 7:47'));
+check(`덜 들어온 9/29 의 0 대신 9/28 합계 — ${e.steps} (${e.note})`, e.steps === '4,000' && e.note.includes('2026-09-28'));
+check(`동기화 멈춤 경고 — "${e.warn}"`, !e.warnHidden && e.warn.includes('9. 29. 오전 7:'));
+
+check('JS 런타임 오류 없음', [a, b, c, d, e].every((x) => x.errs.length === 0));
 
 console.log('\n=== 동기화 안정화 검증 ===');
 let failed = 0;
@@ -115,7 +139,7 @@ for (const [name, ok] of checks) {
   console.log(`  ${ok ? '✅' : '❌'} ${name}`);
   if (!ok) failed++;
 }
-for (const x of [a, b, c, d]) if (x.errs.length) console.log('JS 오류:', x.errs);
+for (const x of [a, b, c, d, e]) if (x.errs.length) console.log('JS 오류:', x.errs);
 console.log(`\n${failed === 0 ? '전부 통과' : failed + '건 실패'}\n`);
 
 await browser.close();
