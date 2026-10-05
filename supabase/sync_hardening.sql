@@ -39,6 +39,11 @@ declare
   d     date;
   canon timestamptz;
   f     numeric;
+  old_v    numeric;
+  old_md   jsonb;
+  r_new    int;
+  r_old    int;
+  take_new boolean;
 begin
   -- 1) 하루 합계 행 → 그 날 LA 0시 한 행으로
   if new.source = 'Apple Health'
@@ -58,17 +63,29 @@ begin
       'timezone',     tz,
       'canonical_daily', true);
 
-    -- 하루 누적값은 줄어들지 않는다. 단축어와 ChatGPT 가 함께 쓰므로, 늦게 도착한 옛날 값
-    -- (예: 아침에 읽은 0) 이 더 새로운 큰 값을 덮어쓰지 않게 큰 값을 남긴다.
-    update health_external_metrics
-       set value    = greatest(value, new.value),
-           unit     = new.unit,
-           metadata = case when new.value >= value then new.metadata else metadata end,
-           updated_at = now()
+    -- 같은 날 행이 이미 있으면 그 행을 고친다. 어떤 값을 남길지는 출처의 정확도로 정한다.
+    --   ChatGPT 동기화: Apple 건강 앱과 같은 중복 제거 합계 (정확)          → 등급 2
+    --   아이폰 단축어  : 워치·아이폰 걸음을 그냥 더해 25~30% 많게 나옴      → 등급 1
+    -- 더 정확한 출처가 오면 바꾸고, 같은 출처끼리는 하루 누적값이 줄지 않으니 큰 값을 남긴다.
+    -- 덜 정확한 출처는 기존 값이 0(그 날 데이터가 아직 안 들어온 상태)일 때만 채운다.
+    select value, metadata into old_v, old_md
+      from health_external_metrics
      where profile_id = new.profile_id and source = new.source
        and metric = new.metric and recorded_at = canon;
     if found then
-      return null;  -- 이미 있는 그 날의 행을 고쳤다. 새 행은 만들지 않는다.
+      r_new := case when new.metadata->>'source' = 'Chace shortcut' then 1 else 2 end;
+      r_old := case when old_md->>'source'      = 'Chace shortcut' then 1 else 2 end;
+      take_new := r_new > r_old
+               or (r_new = r_old and new.value >= old_v)
+               or (r_new < r_old and old_v = 0);
+      update health_external_metrics
+         set value    = case when take_new then new.value else old_v end,
+             unit     = case when take_new then new.unit else unit end,
+             metadata = case when take_new then new.metadata else old_md end,
+             updated_at = now()
+       where profile_id = new.profile_id and source = new.source
+         and metric = new.metric and recorded_at = canon;
+      return null;  -- 그 날의 행을 고쳤다. 새 행은 만들지 않는다.
     end if;
   end if;
 
