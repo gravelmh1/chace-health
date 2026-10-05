@@ -58,8 +58,13 @@ begin
       'timezone',     tz,
       'canonical_daily', true);
 
+    -- 하루 누적값은 줄어들지 않는다. 단축어와 ChatGPT 가 함께 쓰므로, 늦게 도착한 옛날 값
+    -- (예: 아침에 읽은 0) 이 더 새로운 큰 값을 덮어쓰지 않게 큰 값을 남긴다.
     update health_external_metrics
-       set value = new.value, unit = new.unit, metadata = new.metadata, updated_at = now()
+       set value    = greatest(value, new.value),
+           unit     = new.unit,
+           metadata = case when new.value >= value then new.metadata else metadata end,
+           updated_at = now()
      where profile_id = new.profile_id and source = new.source
        and metric = new.metric and recorded_at = canon;
     if found then

@@ -27,6 +27,7 @@ import {
 import { CHART_DAYS } from './config.js';
 import { APP_VERSION, checkForUpdate } from './version.js';
 import { consumeKeyFromUrl } from './key-link.js';
+import { maybeAutoSync, runHealthShortcut, isAppleMobile } from './health-shortcut.js';
 import { repairKey } from './key-repair.js';
 import { checkKey } from './supabase.js';
 import { getAnonKey, setAnonKey } from './settings.js';
@@ -198,6 +199,8 @@ export async function refresh() {
     renderRenpho(d.renpho);
     renderApple(d);
     renderSync(d.sync);
+    // 데이터가 오래됐으면 아이폰 단축어로 Apple 건강 값을 새로 보낸다 (잠금이 풀린 지금이 기회다).
+    maybeAutoSync(d.sync);
     renderAllLocal(); // 클라우드 기록이 들어온 뒤 달력·차트를 다시 그린다
 
     const errors = [...d.errors];
@@ -455,7 +458,11 @@ export function init() {
   ];
   $('today-label').textContent = `${Number(m)}월 ${Number(d)}일 (${wd})`;
 
-  $('refresh-btn').addEventListener('click', () => { refresh(); renderAllLocal(); });
+  // '최신': 아이폰이면 단축어로 Apple 건강 값을 먼저 보내고, 돌아오면 새로 읽는다.
+  $('refresh-btn').addEventListener('click', () => {
+    if (isAppleMobile()) runHealthShortcut();
+    refresh(); renderAllLocal();
+  });
   $('setup-btn').addEventListener('click', openSetup);
   // 열 대상이 설정돼 있을 때만 카드를 누를 수 있게 한다.
   // 그렇지 않으면 눌러도 아무 일이 없으므로, 눌리는 것처럼 보이지 않게 둔다.
