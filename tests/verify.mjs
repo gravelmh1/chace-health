@@ -97,13 +97,7 @@ const got = {
   weight: (await text('renpho-weight')).trim(),
   fat: (await text('renpho-fat')).trim(),
   bmi: (await text('renpho-bmi')).trim(),
-  lean: (await text('renpho-lean')).trim(),
   synced: (await text('renpho-synced')).trim(),
-  appleSynced: (await text('apple-synced')).trim(),
-  hr: (await text('hr-value')).trim(),
-  hrTime: (await text('hr-time')).trim(),
-  steps: (await text('steps-value')).trim(),
-  stepsNote: (await text('steps-note')).trim(),
   today: (await text('today-label')).trim(),
   errors: await page.isHidden('#errors'),
 };
@@ -112,20 +106,9 @@ const checks = [
   ['RENPHO 체중 = 78.3',            got.weight === '78.3'],
   ['RENPHO 체지방률 = 13.2',        got.fat === '13.2'],
   ['RENPHO BMI = 24.0',             got.bmi === '24.0'],
-  ['RENPHO 근육량 = 67.96',         got.lean === '67.96'],
-  ['RENPHO 동기화 = 9. 17. 오전 10:07', got.synced === '9. 17. 오전 10:07 동기화'],
-  ['심박수 = 105',                  got.hr === '105'],
-  ['심박수 시각 = 9. 17. 오후 12:17 측정', got.hrTime === '9. 17. 오후 12:17 측정'],
-  ['걸음수 = 6,482 (일일 집계 행 선택)', got.steps === '6,482'],
-  ['걸음수가 더 최신 legacy snapshot(6,100)을 집지 않음', got.steps !== '6,100'],
-  ['거리 = 1.1 mi (1770.3 m 환산)', got.stepsNote.startsWith('1.1 mi')],
-  // recorded_at(LA 12:20) 이 아니라 metadata.synced_local_time(12:45) 을 써야 한다.
-  // 일일 집계 행의 recorded_at 은 동기화 시각이 아니다.
-  ['Apple 동기화 = 12:45 (synced_local_time)', got.appleSynced === '9. 17. 오후 12:45 동기화'],
-  ['Apple 동기화가 recorded_at 변환값(12:20)이 아님', !got.appleSynced.includes('12:20')],
+  ['RENPHO 측정 = 9. 17. 오전 10:07', got.synced === '9. 17. 오전 10:07 측정'],
+  ['Apple 건강은 숫자 없이 바로가기만', !(await page.$('#steps-value')) && !(await page.$('#hr-value'))],
   ['상단 날짜 = 9월 17일 (목)',      got.today === '9월 17일 (목)'],
-  ['걸음수가 "기록 없음" 이 아님',   !got.stepsNote.includes('기록 없음')],
-  ['걸음수가 0 이 아님',            got.steps !== '0'],
 
   ['오류 배너 없음',                got.errors === true],
   ['정상 로드 시 상태줄 숨김',       await page.isHidden('#status')],
@@ -142,7 +125,7 @@ const todayCell = await page.$$eval('.cal-cell.today .d', (els) => els.map((e) =
 checks.push(['달력 오늘 = 17일', todayCell.length === 1 && todayCell[0] === '17']);
 
 // 픽스처 일정: LA 기준 9/17(아침 러닝), 9/18(헬스장). 9/30 은 3주 범위 밖.
-const evDays = await page.$$eval('.cal-cell:has(.dot.ev) .d', (els) => els.map((e) => e.textContent));
+const evDays = await page.$$eval('.cal-cell', (els) => els.filter((c) => c.querySelector('.evt').textContent.trim()).map((c) => c.querySelector('.d').textContent));
 checks.push([
   `달력 일정 = LA 기준 17/18 일 (받은 값: ${evDays.join(',') || '없음'})`,
   JSON.stringify(evDays) === JSON.stringify(['17', '18']),
@@ -156,7 +139,7 @@ checks.push([
 ]);
 const vdDays = await page.$$eval('.cal-cell .tag.vd', (els) => els.length);
 const vdHead = (await page.textContent('#cal-daily')).trim();
-checks.push([`비D 는 칸이 아니라 '3주 기록' 옆에 (${vdHead}, 칸 ${vdDays}개)`, vdDays === 0 && vdHead === '비D 매일']);
+checks.push([`비D 는 칸이 아니라 '3주 퀘스트' 옆에 (${vdHead}, 칸 ${vdDays}개)`, vdDays === 0 && vdHead === '비D 매일']);
 
 // 차트
 const yTicks = await page.$$eval('.chart .ytick', (els) => els.map((e) => e.textContent));
@@ -178,17 +161,21 @@ checks.push([
   xTicks[0] === '9/4' && xTicks[xTicks.length - 1] === '9/17',
 ]);
 const lgVals = await page.$$eval('.lg-item .lg-val', (els) => els.map((e) => e.textContent));
-checks.push([`차트 범례 합계 = 620·0·180·120 · health_cloud_days 에서 읽음 (${lgVals.join(' ')})`, lgVals.join(',') === '620회,0회,180회,120회']);
-const calCounts = await page.$$eval('.cal-cell .cnt',
-  (els) => els.map((e) => e.textContent.trim()).filter(Boolean));
+checks.push([`차트 범례 합계 = 푸쉬업 620·어깨 120·삼두 180·이두 0 · health_cloud_days 에서 읽음 (${lgVals.join(' ')})`, lgVals.join(',') === '620회,120회,180회,0회']);
+// 퀘스트 달력: 프로틴 기록이 없으니 아직 클리어한 날은 없고, 푸쉬업 진행만 보인다
+const calPu = await page.$$eval('.cal-cell .pu', (els) => els.map((e) => e.textContent.trim()));
 checks.push([
-  `달력 운동 횟수 = 클라우드 기록 (${calCounts.join(' ')})`,
-  calCounts.join(',') === '210회,260회,60회,60회,110회,110회,110회',
+  `달력 푸쉬업 진행 = 클라우드 기록 (${calPu.join(' ')})`,
+  calPu.join(',') === '60,110,60,60,110,110,110',
 ]);
+checks.push(['프로틴 기록이 없으니 ⭐ 없음', (await page.$$('.cal-cell .star')).length === 0]);
+const plans = await page.$$eval('.cal-cell.future .plan', (els) => els.map((e) => e.textContent));
+checks.push([`앞으로의 날 = 그 날 할 세트 (${plans.slice(0, 3).join(' ')})`,
+  plans[0] === '이두어깨' && plans[1] === '푸쉬업' && plans[2] === '푸쉬업' && plans[3] === '이두어깨' && plans[4] === '삼두어깨']);
 const lgItems = await page.$$eval('.lg-item .lg-name', (els) => els.map((e) => e.textContent));
 checks.push([
-  '차트 범례 = 푸쉬업/이두/삼두/어깨',
-  JSON.stringify(lgItems) === JSON.stringify(['푸쉬업', '이두', '삼두', '어깨']),
+  '차트 범례 = 푸쉬업/어깨/삼두/이두',
+  JSON.stringify(lgItems) === JSON.stringify(['푸쉬업', '어깨', '삼두', '이두']),
 ]);
 const marks = await page.$$eval('.lg-mark', (els) => els.length);
 checks.push(['범례 도형 마커 4개 (색약 대비 보조부호)', marks === 4]);
@@ -203,29 +190,24 @@ const rowGeom = await page.evaluate(() => {
   return {
     heights: [...new Set(cells.map((c) => Math.round(c.getBoundingClientRect().height)))],
     dtTops: [...new Set(cells.map((c) => topOf(c, '.tag.dt')).filter((v) => v !== null))],
-    cntTops: [...new Set(cells.map((c) => topOf(c, '.cnt')).filter((v) => v !== null))],
+    cntTops: [...new Set(cells.map((c) => topOf(c, '.cnt .pu')).filter((v) => v !== null))],
   };
 });
 checks.push([`달력 칸 높이가 모두 같음 (${rowGeom.heights.join(',')})`, rowGeom.heights.length === 1]);
 checks.push([`두타 태그가 같은 높이 (${rowGeom.dtTops.length}종)`, rowGeom.dtTops.length === 1]);
-checks.push([`운동 횟수가 같은 높이 (${rowGeom.cntTops.length}종)`, rowGeom.cntTops.length === 1]);
+checks.push([`푸쉬업 진행이 같은 높이 (${rowGeom.cntTops.length}종)`, rowGeom.cntTops.length === 1]);
 
-// + 버튼 = 운동 일정 입력
-await page.click('#entry-add');
-await page.waitForTimeout(250);
-checks.push(['+ 버튼 → 운동 일정 시트', await page.isVisible('#evt-sheet')]);
+// 운동 일정: 퀘스트 카드 안에서 바로 입력
 await page.fill('#evt-title', '골프');
 await page.click('#evt-add');
 await page.waitForTimeout(300);
 checks.push(['일정 목록에 추가됨', (await page.textContent('#evt-list')).includes('골프')]);
-await page.click('#evt-close');
-await page.waitForTimeout(300);
 const evtTexts = await page.$$eval('.cal-cell .evt', (els) => els.map((e) => e.textContent).filter(Boolean));
 checks.push([`달력에 일정 표시 (${evtTexts.join(',')})`, evtTexts.includes('골프')]);
 
 // 운동 횟수가 + 로 바뀌지 않아야 한다 (예전 + 동작이 남아 있지 않은지)
 const pushupAfter = (await page.textContent('.ex-tile:first-child .ex-val')).trim();
-checks.push(['+ 가 운동 횟수를 건드리지 않음', pushupAfter.startsWith('110')]);
+checks.push(['일정 추가가 운동 횟수를 건드리지 않음', pushupAfter.startsWith('110')]);
 
 // 로컬 수정이 클라우드 값을 덮는지 — 앱에서 누른 값이 화면에 반영돼야 한다
 await page.click('.ex-tile:first-child .plus');   // 푸쉬업 110 → 120
@@ -245,9 +227,26 @@ checks.push([
 // 운동 타일
 const tiles = await page.$$eval('.ex-tile .ex-name', (els) => els.map((e) => e.textContent));
 checks.push([
-  '기록하기 타일 = 푸쉬업/이두/삼두/어깨',
-  JSON.stringify(tiles) === JSON.stringify(['푸쉬업', '이두', '삼두', '어깨']),
+  '운동 기록 = 푸쉬업/어깨/삼두/이두 각각 입력',
+  JSON.stringify(tiles) === JSON.stringify(['푸쉬업', '어깨', '삼두', '이두']),
 ]);
+
+// 퀘스트 클리어: 9/17(목) = 푸쉬업 110 + 삼두·어깨 세트 + 프로틴
+const tile = (name) => page.locator('.ex-tile', { hasText: name });
+for (let i = 0; i < 11; i++) await tile('푸쉬업').locator('.plus').click();   // 0 → 110
+await tile('삼두').locator('.plus').click();
+checks.push(['세트가 반만 됐으면 남은 운동을 알려 줌',
+  (await page.textContent('#quest-list')).includes('어깨 남음')]);
+await tile('어깨').locator('.plus').click();
+checks.push(['클리어 전에는 배너 없음', await page.isHidden('#quest-clear')]);
+await page.click('#protein-btn');
+await page.waitForTimeout(250);
+checks.push(['푸쉬업 110 + 세트 + 프로틴 → ⭐ 퀘스트 클리어', await page.isVisible('#quest-clear')]);
+checks.push(['달력 오늘 칸에 ⭐', (await page.$$('.cal-cell.today .star')).length === 1]);
+checks.push([`🔥 연속 (${(await page.textContent('#streak')).trim()})`, (await page.textContent('#streak')).trim() === '🔥 1일 연속']);
+await tile('푸쉬업').locator('.plus').click();   // 120
+checks.push(['110 넘게 하면 넘은 만큼 표시 (+10)', (await page.textContent('#quest-list')).includes('+10')
+  && (await page.textContent('.cal-cell.today .bonus')).trim() === '+10']);
 
 await page.screenshot({
   path: process.env.SHOT || 'tests/screenshot-verified.png',

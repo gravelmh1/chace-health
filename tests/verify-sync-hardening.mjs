@@ -53,16 +53,28 @@ async function open(metrics, nowIso, { reload = false, shot = null } = {}) {
   page.on('pageerror', (e) => errs.push(String(e)));
   await page.goto(`${base}/index.html#key=${encodeURIComponent(KEY)}`);
   const ready = () => page.waitForFunction(
-    () => document.getElementById('steps-value').textContent.trim() !== '—'
-      && document.getElementById('status').hidden, { timeout: 30000 }).catch(() => {});
+    () => document.getElementById('status').hidden
+      && document.getElementById('renpho-weight').textContent.trim() !== '—', { timeout: 30000 }).catch(() => {});
   await ready();
   if (reload) { await page.reload(); await ready(); }
   await page.waitForTimeout(300);
   if (shot) await page.screenshot({ path: path.join(HERE, shot) });
   const t = async (id) => (await page.textContent(`#${id}`)).trim();
   const out = {
-    steps: await t('steps-value'), note: await t('steps-note'),
-    hr: await t('hr-value'), hrTime: await t('hr-time'),
+    // 걸음·심박수는 화면에서 뺐지만(Apple 건강은 바로가기만) 앱이 계산하는 값은 그대로 검증한다.
+    ...(await page.evaluate(async () => {
+      const q = await import('/js/health-queries.js');
+      const t = await import('/js/time.js');
+      const d = await q.fetchDashboard();
+      const steps = d.steps;
+      const mi = Number.isFinite(d.distance?.value) ? (d.distance.value / 1609.344).toFixed(1) : null;
+      return {
+        steps: steps ? Math.round(steps.value).toLocaleString('en-US') : '—',
+        note: !steps ? '기록 없음' : steps.isToday ? (mi ? `${mi} mi 걷기·달리기` : '오늘 현재까지') : `마지막 기록 ${steps.localDate ?? ''}`,
+        hr: d.heartRate ? String(Math.round(d.heartRate.value)) : '—',
+        hrTime: d.heartRate ? `${t.metricTime(d.heartRate)} 측정` : '기록 없음',
+      };
+    })),
     weight: await t('renpho-weight'), fat: await t('renpho-fat'),
     renphoSynced: await t('renpho-synced'),
     warnHidden: await page.$eval('#sync-warn', (e) => e.hidden),
@@ -84,7 +96,7 @@ check(`거리 4,500 m = 2.8 mi — ${a.note}`, a.note.startsWith('2.8 mi'));
 check(`심박수 = 가장 최근 실제 샘플 70 — ${a.hr} (${a.hrTime})`, a.hr === '70' && a.hrTime.startsWith('9. 24. 오후 7:36'));
 check(`9/23 RENPHO 체중 172.4 lb → 78.2 kg — ${a.weight}`, a.weight === '78.2');
 check(`체지방 13.1 — ${a.fat}`, a.fat === '13.1');
-check(`RENPHO 측정 시각 9/23 오전 7:10 (LA 날짜 밀림 없음) — ${a.renphoSynced}`, a.renphoSynced.startsWith('9. 23. 오전 7:10'));
+check(`RENPHO 측정 시각 9/23 오전 7:10 (LA 날짜 밀림 없음) — ${a.renphoSynced}`, a.renphoSynced === '9. 23. 오전 7:10 측정');
 check('동기화 지연 표시 없음 (4분 전 동기화)', a.warnHidden);
 check(`설정에 상태 표시 — ${a.setupSync}`, a.setupSync.includes('9. 24. 오후 7:36')
   && a.setupSync.includes('Apple 9/24') && a.setupSync.includes('RENPHO 9/23'));

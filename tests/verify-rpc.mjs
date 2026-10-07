@@ -6,6 +6,7 @@
 // 이 상태에서도 화면에 같은 값이 떠야 한다.
 // 테이블 경로와 RPC 경로가 같은 규칙(최신 1건, 일일 집계 우선)으로 고른다는 확인이다.
 
+import { dashValues } from './dash-values.mjs';
 import { chromium } from 'playwright';
 import http from 'node:http';
 import fs from 'node:fs';
@@ -92,17 +93,12 @@ const got = {
   weight: await text('renpho-weight'),
   fat: await text('renpho-fat'),
   bmi: await text('renpho-bmi'),
-  lean: await text('renpho-lean'),
   synced: await text('renpho-synced'),
-  hr: await text('hr-value'),
-  hrTime: await text('hr-time'),
-  steps: await text('steps-value'),
-  stepsNote: await text('steps-note'),
 };
+{ const dv = await dashValues(page); Object.assign(got, { lean: dv.lean, steps: dv.steps, stepsNote: dv.note, hr: dv.hr, hrTime: dv.hrTime }); }
 
-const evDays = await page.$$eval('.cal-cell:has(.dot.ev) .d', (els) => els.map((e) => e.textContent));
-const calCounts = await page.$$eval('.cal-cell .cnt',
-  (els) => els.map((e) => e.textContent.trim()).filter(Boolean));
+const evDays = await page.$$eval('.cal-cell', (els) => els.filter((c) => c.querySelector('.evt').textContent.trim()).map((c) => c.querySelector('.d').textContent));
+const calCounts = await page.$$eval('.cal-cell .pu', (els) => els.map((e) => e.textContent.trim()));
 const lgVals = await page.$$eval('.lg-item .lg-val', (els) => els.map((e) => e.textContent));
 
 const checks = [
@@ -112,7 +108,7 @@ const checks = [
   ['RENPHO 체지방 = 13.2', got.fat === '13.2'],
   ['RENPHO BMI = 24.0', got.bmi === '24.0'],
   ['RENPHO 제지방 = 67.96', got.lean === '67.96'],
-  ['RENPHO 동기화 = 9. 17. 오전 10:07', got.synced === '9. 17. 오전 10:07 동기화'],
+  ['RENPHO 측정 = 9. 17. 오전 10:07', got.synced === '9. 17. 오전 10:07 측정'],
   ['심박수 = 105', got.hr === '105'],
   ['심박수 시각 = 9. 17. 오후 12:17 측정', got.hrTime === '9. 17. 오후 12:17 측정'],
   ['걸음수 = 6,482 (일일 집계 우선)', got.steps === '6,482'],
@@ -120,9 +116,9 @@ const checks = [
   ['거리 = 1.1 mi', got.stepsNote.startsWith('1.1 mi')],
   [`달력 일정 = 17/18 (${evDays.join(',') || '없음'})`, JSON.stringify(evDays) === JSON.stringify(['17', '18'])],
   [`약·운동 기록도 RPC 에서 (${calCounts.join(' ') || '없음'})`,
-   calCounts.join(',') === '210회,260회,60회,60회,110회,110회,110회'],
-  [`차트 범례 = 620·0·180·120 (${lgVals.join(' ')})`,
-   lgVals.join(',') === '620회,0회,180회,120회'],
+   calCounts.join(',') === '60,110,60,60,110,110,110'],
+  [`차트 범례 = 푸쉬업 620·어깨 120·삼두 180·이두 0 (${lgVals.join(' ')})`,
+   lgVals.join(',') === '620회,120회,180회,0회'],
   ['JS 런타임 오류 없음', consoleErrors.length === 0],
 ];
 

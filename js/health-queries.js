@@ -226,7 +226,7 @@ function dashboardFromRows(metrics) {
   }
 
   return {
-    renpho: { ...renphoMetrics, syncedAt, errors: [] },
+    renpho: { ...renphoMetrics, syncedAt, weightDelta14: weightDelta(metrics, profileId), errors: [] },
     sync: syncStatus(metrics, profileId),
     heartRate: latestHeartRate(metrics, profileId),
     steps: todayOrLastDay(metrics, profileId, 'stepCount', today),
@@ -294,4 +294,22 @@ function syncFromEntries(entries) {
       };
     });
   return syncStatus(rows, getProfileId());
+}
+
+/**
+ * 최근 체중 − 2주 전 체중 (kg). 2주 전에 잰 기록이 없으면 그 뒤 가장 이른 측정과 비교한다.
+ * 비교할 측정이 하나뿐이면 null.
+ */
+function weightDelta(rows, profileId) {
+  const w = rows
+    .filter((r) => r[C.profileId] === profileId && r[C.source] === SOURCE.renpho && r[C.metric] === 'bodyMass')
+    .map((r) => ({ t: Date.parse(r[C.recordedAt]), v: normalize(r).value }))
+    .filter((x) => Number.isFinite(x.t) && Number.isFinite(x.v))
+    .sort((a, b) => a.t - b.t);
+  if (w.length < 2) return null;
+  const last = w[w.length - 1];
+  const since = last.t - 14 * 86400000;
+  const base = [...w].reverse().find((x) => x.t <= since) ?? w.find((x) => x.t >= since);
+  if (!base || base === last) return null;
+  return Math.round((last.v - base.v) * 10) / 10;
 }

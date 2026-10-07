@@ -6,6 +6,7 @@
 //
 // 이 서버는 루트만 401 이고, 앱이 실제로 쓰는 RPC 와 테이블은 정상 응답한다.
 
+import { dashValues } from './dash-values.mjs';
 import { chromium } from 'playwright';
 import http from 'node:http';
 import fs from 'node:fs';
@@ -77,7 +78,7 @@ await page.waitForTimeout(600);
 
 const checks = [
   ['루트가 막혀 있어도 데이터가 뜸', (await page.textContent('#renpho-weight')).trim() === '78.3'],
-  ['심박수도 뜸', (await page.textContent('#hr-value')).trim() === '105'],
+  ['심박수도 뜸', (await dashValues(page)).hr === '105'],
   ['오류 배너 없음', await page.isHidden('#errors')],
   [`쓸데없는 키 교정을 돌리지 않음 (요청 ${totalRequests}회)`, totalRequests < 40],
   ['JS 런타임 오류 없음', errs.length === 0],

@@ -46,54 +46,57 @@
   <p id="errors" class="errors" hidden></p>
   <p id="sync-warn" class="sync-warn" hidden></p>
 
-  <!-- Apple 건강 -->
-  <article id="apple-card" class="card apple" role="button" tabindex="0">
-    <div class="brand">
+  <!-- Apple 건강 바로가기 + RENPHO 체중 -->
+  <div class="toprow">
+    <article id="apple-card" class="card apple applet" role="button" tabindex="0" aria-label="Apple 건강 열기">
       <span class="badge apple-badge" aria-hidden="true">
-        <svg viewBox="0 0 24 24" width="17" height="17">
+        <svg viewBox="0 0 24 24" width="20" height="20">
           <path d="M12 21s-7.5-4.6-7.5-9.7A4.3 4.3 0 0 1 12 8.6a4.3 4.3 0 0 1 7.5 2.7C19.5 16.4 12 21 12 21z" fill="currentColor"/>
         </svg>
       </span>
       <div>
         <p class="bname">Apple 건강</p>
-        <p id="apple-synced" class="bsync">—</p>
+        <p class="bsync">열기 ›</p>
       </div>
-    </div>
-    <div class="duo">
-      <div>
-        <p class="big"><span id="steps-value">—</span></p>
-        <p class="lab">걸음</p>
-        <p id="steps-note" class="det">—</p>
-      </div>
-      <div>
-        <p class="big"><span id="hr-value">—</span><em>BPM</em></p>
-        <p class="lab">심박수</p>
-        <p id="hr-time" class="det">—</p>
-      </div>
-    </div>
-  </article>
+    </article>
 
-  <!-- RENPHO -->
-  <article id="renpho-card" class="card renpho" role="button" tabindex="0">
-    <div class="brand">
-      <span class="badge renpho-badge" aria-hidden="true">R</span>
+    <article id="renpho-card" class="card renpho" role="button" tabindex="0">
+      <p class="bname">RENPHO</p>
+      <p id="renpho-synced" class="bsync">—</p>
+      <p class="wbig"><span id="renpho-weight">—</span><em>kg</em><span id="renpho-delta" class="delta" hidden></span></p>
+      <p class="wsub">체지방 <span id="renpho-fat">—</span>% · BMI <span id="renpho-bmi">—</span></p>
+    </article>
+  </div>
+
+  <!-- 오늘의 퀘스트 (선택한 날짜) -->
+  <section class="card entry quest">
+    <div class="entry-head">
       <div>
-        <p class="bname">RENPHO</p>
-        <p id="renpho-synced" class="bsync">—</p>
+        <p id="entry-date" class="today">—</p>
+        <h2>오늘의 퀘스트</h2>
       </div>
+      <span id="streak" class="streak" hidden></span>
     </div>
-    <div class="quad">
-      <div><p class="big"><span id="renpho-weight">—</span><em>kg</em></p><p class="lab">체중</p></div>
-      <div><p class="big"><span id="renpho-fat">—</span><em>%</em></p><p class="lab">체지방</p></div>
-      <div><p class="big"><span id="renpho-bmi">—</span></p><p class="lab">BMI</p></div>
-      <div><p class="big"><span id="renpho-lean">—</span><em>kg</em></p><p class="lab">제지방</p></div>
+    <ul id="quest-list" class="quest-list"></ul>
+    <p id="quest-clear" class="quest-clear" hidden>⭐ 퀘스트 클리어!</p>
+
+    <h3 class="sec">운동 기록</h3>
+    <div id="ex-grid" class="ex-grid"></div>
+    <h3 class="sec">약</h3>
+    <div id="med-list" class="med-list"></div>
+
+    <h3 class="sec">운동 일정</h3>
+    <div class="evt-row">
+      <input id="evt-title" type="text" placeholder="예: 골프, 등산, 운동 쉰 날" autocomplete="off">
+      <button id="evt-add" class="btn primary" type="button">추가</button>
     </div>
-  </article>
+    <ul id="evt-list" class="evt-chips"></ul>
+  </section>
 
   <!-- 3주 기록 -->
   <section class="card cal">
     <div class="cal-head">
-      <h2 class="cal-title">3주 기록<span id="cal-daily" class="cal-daily"></span></h2>
+      <h2 class="cal-title">3주 퀘스트<span id="cal-daily" class="cal-daily"></span></h2>
       <button id="cal-today" class="pill" type="button">오늘</button>
     </div>
     <div class="dow">
@@ -102,23 +105,12 @@
     </div>
     <div id="cal-grid" class="cal-grid"></div>
     <p class="cal-legend">
-      <span><i class="dot ex"></i>운동</span>
+      <span>⭐ 클리어</span>
+      <span><i class="dot q-pu"></i>푸쉬업 110</span>
+      <span><i class="dot q-set"></i>세트</span>
+      <span><i class="dot q-pr"></i>프로틴</span>
       <span><i class="dot ev"></i>일정</span>
     </p>
-  </section>
-
-  <!-- 기록하기 -->
-  <section class="card entry">
-    <div class="entry-head">
-      <div>
-        <p id="entry-date" class="today">—</p>
-        <h2>기록하기</h2>
-      </div>
-      <button id="entry-add" class="plusbtn" type="button" aria-label="운동 일정 추가">+</button>
-    </div>
-    <div id="ex-grid" class="ex-grid"></div>
-    <h3 class="sec">약</h3>
-    <div id="med-list" class="med-list"></div>
   </section>
 
   <!-- 최근 2주 운동 -->
@@ -131,29 +123,6 @@
     <div id="chart-body" class="chart-body"></div>
     <p id="chart-detail" class="chart-detail">막대를 누르면 그 날의 운동별 횟수가 나옵니다</p>
   </section>
-
-  <div id="evt-sheet" class="sheet" hidden>
-    <div class="sheet-inner" role="dialog" aria-modal="true" aria-label="운동 일정">
-      <div class="sheet-head">
-        <h2>운동 일정</h2>
-        <button id="evt-close" class="pill" type="button">닫기</button>
-      </div>
-      <p id="evt-date" class="today">—</p>
-
-      <label class="fld">
-        <span>일정 이름</span>
-        <input id="evt-title" type="text" placeholder="예: 골프, 운동쉰날" autocomplete="off">
-      </label>
-
-      <div class="sheet-btns">
-        <button id="evt-add" class="btn primary" type="button">추가</button>
-      </div>
-
-      <ul id="evt-list" class="evt-list"></ul>
-      <p class="note">이 앱에서 넣은 일정은 브라우저에만 저장됩니다.
-        Supabase 의 기존 일정은 그대로 두고 함께 표시합니다.</p>
-    </div>
-  </div>
 
   <div id="setup" class="sheet" hidden>
     <div class="sheet-inner" role="dialog" aria-modal="true" aria-label="설정">

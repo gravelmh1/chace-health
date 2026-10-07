@@ -6,6 +6,7 @@
 //   3) anon 으로 chace_health_pull() 을 불러 나온 JSON 을 그대로 저장했다.
 // 그 JSON 을 RPC 응답으로 돌려주고, 화면이 단축어가 넣은 값을 보여 주는지 본다.
 
+import { dashValues } from './dash-values.mjs';
 import { chromium } from 'playwright';
 import http from 'node:http';
 import fs from 'node:fs';
@@ -62,10 +63,9 @@ await page.waitForTimeout(600);
 const t = (id) => page.textContent(`#${id}`).then((x) => x.trim());
 const got = {
   weight: await t('renpho-weight'), fat: await t('renpho-fat'), bmi: await t('renpho-bmi'),
-  lean: await t('renpho-lean'), renphoSync: await t('renpho-synced'),
-  steps: await t('steps-value'), stepsNote: await t('steps-note'),
-  hr: await t('hr-value'), hrTime: await t('hr-time'),
+  renphoSync: await t('renpho-synced'),
 };
+{ const dv = await dashValues(page); Object.assign(got, { lean: dv.lean, steps: dv.steps, stepsNote: dv.note, hr: dv.hr, hrTime: dv.hrTime }); }
 
 const checks = [
   [`체중 = 78.2 (RENPHO 앱 78.20) — 받은 값 ${got.weight}`, got.weight === '78.2'],

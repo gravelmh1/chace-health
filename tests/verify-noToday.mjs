@@ -5,6 +5,7 @@
 // 그 행은 하루의 일부만 담은 snapshot 이었다.
 // 마지막 "날의 합계" 를 집어야 한다.
 
+import { dashValues } from './dash-values.mjs';
 import { chromium } from 'playwright';
 import http from 'node:http';
 import fs from 'node:fs';
@@ -55,15 +56,12 @@ page.on('pageerror', (e) => errs.push(String(e)));
 
 await page.goto(`${base}/index.html#key=${encodeURIComponent(KEY)}`);
 await page.waitForFunction(
-  () => document.getElementById('steps-value').textContent.trim() !== '—',
+  () => document.getElementById('status').hidden && document.getElementById('renpho-weight').textContent.trim() !== '—',
   { timeout: 30000 },
 ).catch(() => {});
 await page.waitForTimeout(600);
 
-const steps = (await page.textContent('#steps-value')).trim();
-const note = (await page.textContent('#steps-note')).trim();
-const hr = (await page.textContent('#hr-value')).trim();
-const hrTime = (await page.textContent('#hr-time')).trim();
+const { steps, note, hr, hrTime } = await dashValues(page);
 const weight = (await page.textContent('#renpho-weight')).trim();
 
 const checks = [

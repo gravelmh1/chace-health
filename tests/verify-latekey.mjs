@@ -6,6 +6,7 @@
 //
 // 이 서버는 RPC 만 열려 있고 테이블은 전부 막혀 있다 — 실제 환경과 같다.
 
+import { dashValues } from './dash-values.mjs';
 import { chromium } from 'playwright';
 import http from 'node:http';
 import fs from 'node:fs';
@@ -84,8 +85,9 @@ await page.waitForTimeout(1200);
 
 checks.push([`키 입력 후 RPC 를 씀 (RPC ${rpcOk}회)`, rpcOk > 0]);
 checks.push(['RENPHO 값이 뜸', (await page.textContent('#renpho-weight')).trim() === '78.3']);
-checks.push(['심박수가 뜸', (await page.textContent('#hr-value')).trim() === '105']);
-checks.push(['걸음수가 뜸', (await page.textContent('#steps-value')).trim() === '6,482']);
+const dv = await dashValues(page);
+checks.push(['심박수가 뜸', dv.hr === '105']);
+checks.push(['걸음수가 뜸', dv.steps === '6,482']);
 checks.push(['오류 배너 없음', await page.isHidden('#errors')]);
 
 const calCounts = await page.$$eval('.cal-cell .cnt',

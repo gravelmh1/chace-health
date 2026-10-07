@@ -4,6 +4,7 @@
 // (RLS 를 무시하는 전권 키라 유출되면 DB 전체가 열린다)
 // 그래서 "저장이 실제로 거부되는지" 를 테스트로 고정해 둔다.
 
+import { dashValues } from './dash-values.mjs';
 import { chromium } from 'playwright';
 import http from 'node:http';
 import fs from 'node:fs';
@@ -167,7 +168,7 @@ checks.push(['스키마 진단 = 기록 테이블도 검사', diag.includes('hea
 await page.click('#setup-close');
 await page.waitForTimeout(500);
 checks.push(['설정 닫으면 최신 데이터 표시', (await page.textContent('#renpho-weight')).trim() === '78.3']);
-checks.push(['걸음수도 표시', (await page.textContent('#steps-value')).trim() === '6,482']);
+checks.push(['걸음수도 계산됨', (await dashValues(page)).steps === '6,482']);
 
 // 5) 새로고침해도 키가 유지된다 (재입력 필요 없음)
 await page.reload();

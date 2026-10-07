@@ -152,13 +152,13 @@ export const DAYS_COL = {
 export const EXERCISES = [
   { id: 'pushup',   label: '푸쉬업', shape: 'arrow',    color: '#2F7BEF',
     aliases: ['pushUp', 'push_up', 'pushups', 'pushUps'] },
+  { id: 'shoulder', label: '어깨',   shape: 'triangle', color: '#9B59E8',
+    aliases: ['shoulders', 'shoulderPress', 'shoulder_press'] },
+  { id: 'triceps',  label: '삼두',   shape: 'circle',   color: '#34C759',
+    aliases: ['tricep', 'tri', 'triceps_ext'] },
   // 화면 이름은 '이두' (예전 '덤벨'). id 는 그대로 둔다 — 지난 기록이 이 키로 저장돼 있다.
   { id: 'dumbbell', label: '이두',   shape: 'diamond',  color: '#F5A623',
     aliases: ['dumbBell', 'dumb_bell', 'dumbbells', 'biceps', 'bicep'] },
-  { id: 'triceps',  label: '삼두',   shape: 'circle',   color: '#34C759',
-    aliases: ['tricep', 'tri', 'triceps_ext'] },
-  { id: 'shoulder', label: '어깨',   shape: 'triangle', color: '#9B59E8',
-    aliases: ['shoulders', 'shoulderPress', 'shoulder_press'] },
 ];
 
 /** 차트에 표시할 기간 (일) */
@@ -183,3 +183,24 @@ export const AUTO_SYNC_AFTER_MS = 2 * 3600 * 1000;
 
 /** 단축어가 실패해도 앱을 열 때마다 반복 실행하지 않도록 두는 간격 */
 export const AUTO_SYNC_MIN_GAP_MS = 30 * 60 * 1000;
+
+// ---------------------------------------------------------------------------
+// 하루 퀘스트
+//   - 매일: 푸쉬업 110개
+//   - 평일: 세트 하나 (월·수·금 = 이두+어깨, 화·목 = 삼두+어깨). 세트의 두 운동을 모두 했으면 완료.
+//   - 주말: 푸쉬업만
+//   - 매일: 프로틴
+// 운동 id 는 EXERCISES 의 id (이두 = 'dumbbell').
+// ---------------------------------------------------------------------------
+export const QUEST = {
+  pushupGoal: 110,
+  // 요일(0=일 … 6=토) → 그 날의 세트. 없으면 세트 퀘스트 없음.
+  sets: {
+    1: { label: '이두 · 어깨', ids: ['dumbbell', 'shoulder'] },
+    2: { label: '삼두 · 어깨', ids: ['triceps', 'shoulder'] },
+    3: { label: '이두 · 어깨', ids: ['dumbbell', 'shoulder'] },
+    4: { label: '삼두 · 어깨', ids: ['triceps', 'shoulder'] },
+    5: { label: '이두 · 어깨', ids: ['dumbbell', 'shoulder'] },
+  },
+  proteinId: 'protein',   // 하루 기록의 meds 에 체크로 저장한다
+};

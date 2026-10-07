@@ -12,7 +12,7 @@ import { fetchDashboard } from './health-queries.js';
 import { isConfigured } from './supabase.js';
 import { openSetup, initSetup } from './setup.js';
 import {
-  formatSyncTime, metricTime, syncTime, laToday, shiftDate, shortLabel,
+  formatSyncTime, metricTime, laToday, shiftDate, shortLabel,
 } from './time.js';
 import {
   openRenpho, openAppleHealth, canOpenRenpho, canOpenAppleHealth,
@@ -20,11 +20,12 @@ import {
 import { buildWeekGrid, gridRange, fetchCalendarEvents } from './calendar.js';
 import { renderChart, renderLegend, dayDetail } from './chart.js';
 import {
-  loadLog, dayEntry, setMed, setExercise, exerciseTotal,
+  loadLog, dayEntry, setMed, setExercise,
   medsDueOn, isDutaDay, loadCloudDays, localEvents, addEvent, removeEvent,
   MEDICATIONS, EXERCISES,
 } from './tracker.js';
-import { CHART_DAYS } from './config.js';
+import { CHART_DAYS, QUEST } from './config.js';
+import { questStatus, streak, isWeekend, setFor } from './quest.js';
 import { APP_VERSION, checkForUpdate } from './version.js';
 import { consumeKeyFromUrl } from './key-link.js';
 import { maybeAutoSync, runHealthShortcut, isAppleMobile } from './health-shortcut.js';
@@ -40,7 +41,6 @@ function escapeHtml(t) {
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 const DASH = '—';
-const METERS_PER_MILE = 1609.344;
 const STEP = 10; // +/- 버튼 증감 단위
 
 /** 소수점 이하 불필요한 0 을 없앤다. 78.0 → '78', 78.3 → '78.3', 67.96 → '67.96' */
@@ -51,10 +51,6 @@ function trimNum(v, maxDigits = 2) {
 /** 항상 소수점 n자리 (BMI 23.9 / 24.0 처럼 자릿수를 고정해야 하는 값) */
 function fixed(v, digits = 1) {
   return v === null || v === undefined || !Number.isFinite(v) ? DASH : v.toFixed(digits);
-}
-function int(v) {
-  return v === null || v === undefined || !Number.isFinite(v)
-    ? DASH : Math.round(v).toLocaleString('en-US');
 }
 
 let selectedDate = laToday();
@@ -67,51 +63,17 @@ function renderRenpho(r) {
   $('renpho-weight').textContent = trimNum(r?.bodyMass?.value, 2);
   $('renpho-fat').textContent = fixed(r?.bodyFatPercentage?.value, 1);
   $('renpho-bmi').textContent = fixed(r?.bodyMassIndex?.value, 1);
-  $('renpho-lean').textContent = trimNum(r?.leanBodyMass?.value, 2);
-  // 표시 시각은 metadata 의 현지 시각을 우선한다. recorded_at 을 변환해 쓰면
-  // 일일 집계처럼 기준 시각이 따로 있는 행에서 어긋난다.
-  const latest = ['bodyMass', 'bodyFatPercentage', 'bodyMassIndex', 'leanBodyMass']
+  const delta = r?.weightDelta14;
+  const el = $('renpho-delta');
+  el.hidden = !Number.isFinite(delta);
+  if (Number.isFinite(delta)) el.textContent = `2주 ${delta > 0 ? '+' : delta < 0 ? '−' : '±'}${Math.abs(delta).toFixed(1)}`;
+  // 표시 시각은 metadata 의 현지 시각을 우선한다.
+  const latest = ['bodyMass', 'bodyFatPercentage', 'bodyMassIndex']
     .map((k) => r?.[k])
     .filter((m) => m?.recordedAt)
     .sort((a, b) => Date.parse(b.recordedAt) - Date.parse(a.recordedAt))[0];
 
-  $('renpho-synced').textContent = latest
-    ? `${metricTime(latest)} 동기화`
-    : '측정 기록 없음';
-}
-
-function renderApple(d) {
-  // 동기화 시각: metadata.synced_local_time 이 실제 동기화 시각이다.
-  // 일일 집계 행의 recorded_at 은 집계 기준 시각이라 동기화 시각이 아니다.
-  const appleEntries = [d.steps, d.heartRate, d.distance]
-    .filter((m) => m?.recordedAt)
-    .sort((a, b) => Date.parse(b.recordedAt) - Date.parse(a.recordedAt));
-  const withSync = appleEntries.find((m) => m?.metadata?.synced_local_time) ?? appleEntries[0];
-  $('apple-synced').textContent = withSync
-    ? `${syncTime(withSync)} 동기화`
-    : '동기화 기록 없음';
-
-  $('steps-value').textContent = int(d.steps?.value);
-
-  const note = $('steps-note');
-  const meters = d.distance?.value;
-  const miles = Number.isFinite(meters) ? (meters / METERS_PER_MILE).toFixed(1) : null;
-
-  if (!d.steps) {
-    note.textContent = '기록 없음';
-    note.classList.add('stale');
-  } else if (d.steps.isToday) {
-    note.textContent = miles ? `${miles} mi 걷기·달리기` : '오늘 현재까지';
-    note.classList.remove('stale');
-  } else {
-    note.textContent = `마지막 기록 ${d.steps.localDate ?? ''}`;
-    note.classList.add('stale');
-  }
-
-  $('hr-value').textContent = int(d.heartRate?.value);
-  $('hr-time').textContent = d.heartRate?.recordedAt
-    ? `${metricTime(d.heartRate)} 측정`
-    : '기록 없음';
+  $('renpho-synced').textContent = latest ? `${metricTime(latest)} 측정` : '측정 기록 없음';
 }
 
 const dayLabel = (d) => (d ? shortLabel(d) : '없음');
@@ -197,7 +159,6 @@ export async function refresh() {
     const [d, days] = await Promise.all([fetchDashboard(), loadCloudDays()]);
 
     renderRenpho(d.renpho);
-    renderApple(d);
     renderSync(d.sync);
     // 데이터가 오래됐으면 아이폰 단축어로 Apple 건강 값을 새로 보낸다 (잠금이 풀린 지금이 기회다).
     maybeAutoSync(d.sync);
@@ -251,7 +212,6 @@ async function renderCalendar() {
     if (cell.isToday) el.classList.add('today');
     if (cell.dateStr === selectedDate) el.classList.add('sel');
 
-    const total = exerciseTotal(log, cell.dateStr);
     const events = monthEvents[cell.dateStr] ?? [];
 
     // 일정: 앱에서 넣은 것 + 클라우드 기록의 events + Google Calendar
@@ -260,15 +220,34 @@ async function renderCalendar() {
       ...events.map((e) => e.title),
     ])];
 
+    // 퀘스트: 지난 날·오늘은 결과, 앞으로의 날은 그 날 할 세트.
+    const future = cell.dateStr > laToday();
+    const q = questStatus(log, cell.dateStr);
+    let mark;
+    let sub;
+    if (future) {
+      el.classList.add('future');
+      mark = '';
+      sub = `<span class="plan">${isWeekend(cell.dateStr) ? '푸쉬업' : setFor(cell.dateStr).label.replace(/ · /g, '')}</span>`;
+    } else if (q.cleared) {
+      el.classList.add('cleared');
+      mark = '<span class="star" aria-label="퀘스트 클리어">⭐</span>';
+      sub = `<span class="bonus">${q.pushup > q.goal ? `+${q.pushup - q.goal}` : '클리어'}</span>`;
+    } else {
+      mark = '<span class="qdots">' +
+        `<i class="q-pu${q.pushupDone ? ' on' : ''}" title="푸쉬업"></i>` +
+        (q.set ? `<i class="q-set${q.setDone ? ' on' : ''}" title="세트"></i>` : '') +
+        `<i class="q-pr${q.protein ? ' on' : ''}" title="프로틴"></i></span>`;
+      sub = q.pushup ? `<span class="pu" title="푸쉬업 ${q.pushup}/${q.goal}">${q.pushup}</span>` : '';
+    }
+
     // 칸마다 같은 자리에 같은 것이 오도록 슬롯을 고정한다.
-    // 내용이 없어도 자리를 비워 두어야 행끼리 줄이 맞는다.
     el.innerHTML =
       `<span class="d">${cell.day}</span>` +
+      `<span class="slot qmark">${mark}</span>` +
+      `<span class="slot cnt">${sub}</span>` +
       `<span class="slot">${isDutaDay(cell.dateStr) ? '<i class="tag dt">두타</i>' : ''}</span>` +
-      `<span class="slot cnt">${total ? `${total}회` : ''}</span>` +
-      `<span class="slot evt">${titles[0] ? escapeHtml(titles[0]) : ''}</span>` +
-      `<span class="slot dots">${total ? '<i class="dot ex"></i>' : ''}` +
-      `${titles.length ? '<i class="dot ev"></i>' : ''}</span>`;
+      `<span class="slot evt">${titles[0] ? escapeHtml(titles[0]) : ''}</span>`;
     el.addEventListener('click', () => {
       selectedDate = cell.dateStr;
       renderCalendar();
@@ -289,12 +268,40 @@ function entryLabel(dateStr) {
 }
 
 function renderEntry() {
-  $('entry-date').textContent = entryLabel(selectedDate);
+  const weekend = isWeekend(selectedDate);
+  $('entry-date').textContent = `${entryLabel(selectedDate)} · ${weekend ? '주말' : '평일'}`;
 
   const log = loadLog();
   const day = dayEntry(log, selectedDate);
+  const q = questStatus(log, selectedDate);
 
-  // 운동 타일
+  // 연속 클리어 (오늘 기준)
+  const n = streak(log, laToday());
+  $('streak').hidden = n < 1;
+  $('streak').textContent = `🔥 ${n}일 연속`;
+
+  // 퀘스트 목록
+  const pct = Math.min(100, Math.round((q.pushup / q.goal) * 100));
+  const items = [
+    `<li class="${q.pushupDone ? 'done' : ''}">
+       <div class="qi"><b>푸쉬업 ${q.goal}개</b><span class="qv">${q.pushup} / ${q.goal}${q.pushup > q.goal ? ` <em class="plus">+${q.pushup - q.goal}</em>` : ''}</span></div>
+       <div class="pbar"><span style="width:${pct}%"></span></div></li>`,
+    q.set
+      ? `<li class="${q.setDone ? 'done' : ''}">
+           <div class="qi"><b>${q.set.label} 세트</b><span class="qv">${q.setDone ? '완료' : `${q.setLeft.join(' · ')} 남음`}</span></div></li>`
+      : '<li class="done"><div class="qi"><b>주말</b><span class="qv">푸쉬업만</span></div></li>',
+    `<li class="${q.protein ? 'done' : ''}">
+       <div class="qi"><b>프로틴</b><button type="button" id="protein-btn" class="chk${q.protein ? ' on' : ''}" aria-pressed="${q.protein}" aria-label="프로틴 먹음">✓</button></div></li>`,
+  ];
+  $('quest-list').innerHTML = items.join('');
+  $('quest-clear').hidden = !q.cleared;
+  $('protein-btn').addEventListener('click', () => {
+    setMed(selectedDate, QUEST.proteinId, !q.protein);
+    renderEntry();
+    renderCalendar();
+  });
+
+  // 운동 기록: 네 가지 모두 10개씩
   const grid = $('ex-grid');
   grid.innerHTML = '';
   for (const ex of EXERCISES) {
@@ -340,17 +347,11 @@ function renderEntry() {
     });
     medBox.appendChild(btn);
   }
+
+  renderEventList();
 }
 
 // --- 운동 일정 입력 -----------------------------------------------------------
-
-function openEventSheet() {
-  $('evt-date').textContent = entryLabel(selectedDate);
-  $('evt-title').value = '';
-  $('evt-sheet').hidden = false;
-  renderEventList();
-  $('evt-title').focus();
-}
 
 function renderEventList() {
   const list = $('evt-list');
@@ -359,9 +360,8 @@ function renderEventList() {
 
   list.innerHTML =
     mine.map((t) => `<li><span>${escapeHtml(t)}</span>` +
-      `<button type="button" class="evt-del" data-title="${escapeHtml(t)}">삭제</button></li>`).join('') +
-    cloud.map((t) => `<li class="ro"><span>${escapeHtml(t)}</span><em>Supabase</em></li>`).join('') ||
-    '<li class="ro"><span>등록된 일정이 없습니다</span></li>';
+      `<button type="button" class="evt-del" data-title="${escapeHtml(t)}" aria-label="${escapeHtml(t)} 삭제">✕</button></li>`).join('') +
+    cloud.map((t) => `<li class="ro"><span>${escapeHtml(t)}</span></li>`).join('');
 
   for (const btn of list.querySelectorAll('.evt-del')) {
     btn.addEventListener('click', () => {
@@ -479,18 +479,13 @@ export function init() {
     renderEntry();
   });
   // + 버튼: 선택한 날짜에 운동 일정을 넣는다
-  $('entry-add').addEventListener('click', openEventSheet);
-  $('evt-close').addEventListener('click', () => { $('evt-sheet').hidden = true; });
-  $('evt-sheet').addEventListener('click', (e) => {
-    if (e.target.id === 'evt-sheet') $('evt-sheet').hidden = true;
-  });
   $('evt-add').addEventListener('click', commitEvent);
   $('evt-title').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') commitEvent();
   });
   initSetup(() => { refresh(); renderAllLocal(); });
 
-  const setupOpen = () => !$('setup').hidden || !$('evt-sheet').hidden;
+  const setupOpen = () => !$('setup').hidden;
   document.addEventListener('visibilitychange', () => {
     if (document.hidden || setupOpen()) return;
     // 돌아올 때마다 새 배포가 있는지 먼저 본다. 있으면 페이지가 새로 뜬다.
