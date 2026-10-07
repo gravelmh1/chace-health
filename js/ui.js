@@ -29,6 +29,7 @@ import { questStatus, streak, isWeekend, setFor } from './quest.js';
 import { APP_VERSION, checkForUpdate } from './version.js';
 import { consumeKeyFromUrl } from './key-link.js';
 import { maybeAutoSync, runHealthShortcut, isAppleMobile } from './health-shortcut.js';
+import { preventDoubleTapZoom } from './no-zoom.js';
 import { repairKey } from './key-repair.js';
 import { checkKey } from './supabase.js';
 import { getAnonKey, setAnonKey } from './settings.js';
@@ -470,6 +471,7 @@ function renderAllLocal() {
 }
 
 export function init() {
+  preventDoubleTapZoom();
   // 주소로 키가 전달됐으면 가장 먼저 처리한다. 저장 즉시 주소에서 지운다.
   const fromLink = consumeKeyFromUrl();
 
