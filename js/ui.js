@@ -190,6 +190,36 @@ function markSvg(ex) {
   return `<svg class="ex-mark" viewBox="0 0 14 14" aria-hidden="true">${shapes[ex.shape] ?? shapes.circle}</svg>`;
 }
 
+/**
+ * 날짜 링. 푸쉬업(파랑) · 세트(초록) · 프로틴(주황) 칸을 채운 만큼 그린다 (주말은 세트 칸 없음).
+ * 셋 다 채우면 가운데가 금색이 된다. 날짜 숫자는 링 안에.
+ */
+function questRing(q, cell, future) {
+  const R = 17;
+  const C = 2 * Math.PI * R;
+  const setFrac = q.set ? (q.set.ids.length - q.setLeft.length) / q.set.ids.length : 0;
+  const segs = [
+    ['var(--q-pu)', Math.min(q.pushup / q.goal, 1)],
+    ...(q.set ? [['var(--q-set)', setFrac]] : []),
+    ['var(--q-pr)', q.protein ? 1 : 0],
+  ];
+  const n = segs.length;
+  const gap = 4;
+  const seg = C / n - gap;
+  let arcs = '';
+  segs.forEach(([color, f], k) => {
+    const off = -(k * C) / n;
+    arcs += `<circle cx="21" cy="21" r="${R}" class="ring-bg" stroke-dasharray="${seg} ${C - seg}" stroke-dashoffset="${off}"/>`;
+    if (!future && f > 0) {
+      arcs += `<circle cx="21" cy="21" r="${R}" stroke="${color}" class="ring-fg" stroke-dasharray="${seg * f} ${C - seg * f}" stroke-dashoffset="${off}"/>`;
+    }
+  });
+  const gold = !future && q.cleared ? '<circle cx="21" cy="21" r="12.5" class="ring-gold"/>' : '';
+  return `<svg class="ring" viewBox="0 0 42 42" aria-hidden="false">` +
+    `<g transform="rotate(-90 21 21)">${arcs}</g>${gold}` +
+    `<text x="21" y="25.5" text-anchor="middle" class="d">${cell.day}</text></svg>`;
+}
+
 async function renderCalendar() {
   const cells = buildWeekGrid(anchorDate);
   const [from, to] = gridRange(cells);
@@ -220,34 +250,29 @@ async function renderCalendar() {
       ...events.map((e) => e.title),
     ])];
 
-    // 퀘스트: 지난 날·오늘은 결과, 앞으로의 날은 그 날 할 세트.
+    // 퀘스트 링: 지난 날·오늘은 채운 만큼, 앞으로의 날은 빈 링 + 그 날 할 세트.
     const future = cell.dateStr > laToday();
     const q = questStatus(log, cell.dateStr);
-    let mark;
-    let sub;
+    if (future) el.classList.add('future');
+    if (!future && q.cleared) el.classList.add('cleared');
+
+    let label = '';
     if (future) {
-      el.classList.add('future');
-      mark = '';
-      sub = `<span class="plan">${isWeekend(cell.dateStr) ? '푸쉬업' : setFor(cell.dateStr).label.replace(/ · /g, '')}</span>`;
+      label = `<span class="plan">${isWeekend(cell.dateStr) ? '푸쉬업' : setFor(cell.dateStr).label.replace(/ · /g, '')}</span>`;
     } else if (q.cleared) {
-      el.classList.add('cleared');
-      mark = '<span class="star" aria-label="퀘스트 클리어">⭐</span>';
-      sub = `<span class="bonus">${q.pushup > q.goal ? `+${q.pushup - q.goal}` : '클리어'}</span>`;
-    } else {
-      mark = '<span class="qdots">' +
-        `<i class="q-pu${q.pushupDone ? ' on' : ''}" title="푸쉬업"></i>` +
-        (q.set ? `<i class="q-set${q.setDone ? ' on' : ''}" title="세트"></i>` : '') +
-        `<i class="q-pr${q.protein ? ' on' : ''}" title="프로틴"></i></span>`;
-      sub = q.pushup ? `<span class="pu" title="푸쉬업 ${q.pushup}/${q.goal}">${q.pushup}</span>` : '';
+      label = q.pushup > q.goal
+        ? `<span class="bonus">+${q.pushup - q.goal}</span>`
+        : '<span class="star" aria-label="퀘스트 클리어">⭐</span>';
+    } else if (q.pushup) {
+      label = `<span class="pu" title="푸쉬업 ${q.pushup}/${q.goal}">${q.pushup}</span>`;
     }
 
     // 칸마다 같은 자리에 같은 것이 오도록 슬롯을 고정한다.
     el.innerHTML =
-      `<span class="d">${cell.day}</span>` +
-      `<span class="slot qmark">${mark}</span>` +
-      `<span class="slot cnt">${sub}</span>` +
+      questRing(q, cell, future) +
+      `<span class="slot cnt">${label}</span>` +
       `<span class="slot">${isDutaDay(cell.dateStr) ? '<i class="tag dt">두타</i>' : ''}</span>` +
-      `<span class="slot evt">${titles[0] ? escapeHtml(titles[0]) : ''}</span>`;
+      `<span class="slot evt">${titles.length ? escapeHtml(titles.join(', ')) : ''}</span>`;
     el.addEventListener('click', () => {
       selectedDate = cell.dateStr;
       renderCalendar();

@@ -435,7 +435,7 @@ input, textarea, select { font-size: 16px !important; }
 .cal-cell .plan { font-size: 9.5px; font-weight: 700; color: var(--ink-2); white-space: nowrap; }
 .qdots { display: inline-flex; gap: 3px; align-items: center; }
 .qdots i, .dot.q-pu, .dot.q-set, .dot.q-pr { width: 7px; height: 7px; border-radius: 50%; background: #D1D1D6; display: inline-block; }
-.qdots i.q-pu.on, .dot.q-pu { background: #2F7BEF; }
+.qdots i.q-pu.on, .dot.q-pu { background: var(--q-pu); }
 .qdots i.q-set.on, .dot.q-set { background: var(--green); }
 .qdots i.q-pr.on, .dot.q-pr { background: #C25A00; }
 
@@ -445,3 +445,21 @@ input, textarea, select { font-size: 16px !important; }
 .quest .ex-tile { min-width: 0; padding: 12px 10px; }
 .quest .rnd { width: 36px; height: 36px; font-size: 20px; }
 .quest .ex-val { font-size: 22px; }
+
+/* --- 퀘스트 링 달력 --- */
+:root { --q-pu: #2F7BEF; --q-set: #34C759; --q-pr: #C25A00; }
+.cal-cell { grid-template-rows: 44px 14px 16px 26px; height: 116px; padding-top: 6px; }
+.cal-cell .ring { width: 44px; height: 44px; display: block; }
+.cal-cell .ring-bg { fill: none; stroke: #E5E5EA; stroke-width: 4; stroke-linecap: round; }
+.cal-cell .ring-fg { fill: none; stroke-width: 4; stroke-linecap: round; }
+.cal-cell .ring-gold { fill: #FFD66B; }
+.cal-cell .ring .d { font-size: 13px; font-weight: 800; fill: var(--ink); width: auto; height: auto; }
+.cal-cell.today .ring .d { fill: var(--blue); }
+.cal-cell.today .d { background: none; color: inherit; }
+.cal-cell.future .ring .d { fill: var(--ink-3); }
+.cal-cell .evt {
+  align-items: flex-start; white-space: normal; text-align: center; line-height: 1.2;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  font-size: 9.5px; padding: 0 1px; word-break: keep-all;
+}
+.dot.q-gold { width: 7px; height: 7px; border-radius: 50%; background: #FFD66B; display: inline-block; }

@@ -203,7 +203,7 @@ await page.click('#evt-add');
 await page.waitForTimeout(300);
 checks.push(['일정 목록에 추가됨', (await page.textContent('#evt-list')).includes('골프')]);
 const evtTexts = await page.$$eval('.cal-cell .evt', (els) => els.map((e) => e.textContent).filter(Boolean));
-checks.push([`달력에 일정 표시 (${evtTexts.join(',')})`, evtTexts.includes('골프')]);
+checks.push([`달력에 입력한 일정 표시 (${evtTexts.join(' / ')})`, evtTexts.some((t) => t.includes('골프'))]);
 
 // 운동 횟수가 + 로 바뀌지 않아야 한다 (예전 + 동작이 남아 있지 않은지)
 const pushupAfter = (await page.textContent('.ex-tile:first-child .ex-val')).trim();
@@ -242,7 +242,7 @@ checks.push(['클리어 전에는 배너 없음', await page.isHidden('#quest-cl
 await page.click('#protein-btn');
 await page.waitForTimeout(250);
 checks.push(['푸쉬업 110 + 세트 + 프로틴 → ⭐ 퀘스트 클리어', await page.isVisible('#quest-clear')]);
-checks.push(['달력 오늘 칸에 ⭐', (await page.$$('.cal-cell.today .star')).length === 1]);
+checks.push(['달력 오늘 칸에 ⭐ + 금색 링', (await page.$$('.cal-cell.today .star')).length === 1 && (await page.$$('.cal-cell.today .ring-gold')).length === 1]);
 checks.push([`🔥 연속 (${(await page.textContent('#streak')).trim()})`, (await page.textContent('#streak')).trim() === '🔥 1일 연속']);
 await tile('푸쉬업').locator('.plus').click();   // 120
 checks.push(['110 넘게 하면 넘은 만큼 표시 (+10)', (await page.textContent('#quest-list')).includes('+10')
